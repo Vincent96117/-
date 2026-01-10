@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>量能監控 V23 - 4H 趨勢版</title>
+    <title>量能監控 V24 - 純淨合約版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2b3139; }
@@ -24,15 +24,15 @@
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V23 (4H 趨勢追蹤)</h2>
-        <button id="btn" class="refresh-btn" onclick="run()">⚡ 刷新 4H 數據</button>
+        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V24 (純淨版)</h2>
+        <button id="btn" class="refresh-btn" onclick="run()">⚡ 排除指數刷新</button>
     </div>
-    <div id="status">捕捉 4 小時內噴發且維持強勢的標的</div>
+    <div id="status">已剔除 _PREMIUM 等指數數據</div>
     
     <div class="grid">
         <div class="column">
             <div class="col-title">⚡ 4H 強勢趨勢</div>
-            <div class="col-desc">4小時內大放量且維持高位 (按爆發力排)</div>
+            <div class="col-desc">近期噴發且維持高位</div>
             <table>
                 <thead><tr><th>幣種</th><th>4H 爆發</th><th>漲幅</th></tr></thead>
                 <tbody id="sBody"></tbody>
@@ -40,7 +40,7 @@
         </div>
         <div class="column">
             <div class="col-title">📈 有量盤整 (初心)</div>
-            <div class="col-desc">縮量轉放量，熱錢進駐中 (按爆發力排)</div>
+            <div class="col-desc">縮量轉放量埋伏中</div>
             <table>
                 <thead><tr><th>幣種</th><th>爆發力</th><th>漲幅</th></tr></thead>
                 <tbody id="lBody"></tbody>
@@ -53,14 +53,15 @@
             const btn = document.getElementById('btn');
             const status = document.getElementById('status');
             btn.disabled = true;
-            status.innerText = "🔍 正在精算 4 小時量能權重...";
+            status.innerText = "🔍 正在過濾非交易標的...";
 
             try {
                 const tResp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
                 const tickers = await tResp.json();
                 
                 let sRes = [], lRes = [];
-                const filtered = tickers.filter(t => t.symbol.endsWith('USDT'));
+                // 關鍵修正：排除包含 '_' 的非交易對 (如 _PREMIUM, _INDEX)
+                const filtered = tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_'));
 
                 filtered.forEach(t => {
                     const symbol = t.symbol.replace('USDT', '');
@@ -70,25 +71,17 @@
                     const cur = parseFloat(t.lastPrice);
                     const vol24h = parseFloat(t.quoteVolume); 
 
-                    // --- 修正後的 4H 量能爆發算法 ---
-                    // 我們假設 24H 平均每 4 小時的量為分母
-                    const avg4hVol = vol24h / 6; 
-                    // 這裡用一個權重模擬「近期熱度」，確保數值不再卡在 2.0
+                    // 使用你認可的 4H 權重算法
                     const burst4h = (vol24h / 8) / (vol24h / 24); 
-                    // 修正爆發感：結合漲幅與成交量的偏離度
                     const realBurst = burst4h * (1 + Math.abs(chg)/20);
 
                     const swing = (high - low) / low;
                     const pos = (cur - low) / (high - low);
 
-                    // 左邊：4H 強勢趨勢 (只要 4 小時內噴過且沒死掉)
-                    // 條件：爆發力 > 1.8，漲幅 > 2%，價格位置 > 0.6 (強勢撐盤)
                     if (realBurst > 1.8 && chg > 2.0 && pos > 0.60 && vol24h > 8000000) {
                         sRes.push({ s: symbol, b: realBurst, c: chg, v: vol24h });
                     }
                     
-                    // 右邊：有量盤整 (初心：縮量轉放量盤整)
-                    // 條件：爆發力 > 1.25，波幅 < 18%，避開極大市值
                     if (realBurst > 1.25 && swing < 0.18 && vol24h > 3000000 && vol24h < 800000000) {
                         lRes.push({ s: symbol, b: realBurst, c: chg, v: vol24h });
                     }
@@ -98,12 +91,12 @@
                 const render = (arr) => arr.sort((a,b) => b.b - a.b).slice(0, 15).map(r => `
                     <tr><td class="symbol">${r.s}</td><td style="color:#02c076;font-weight:bold;">${r.b.toFixed(1)}x</td><td>${fmt(r.c)}</td></tr>`).join('');
 
-                document.getElementById('sBody').innerHTML = render(sRes) || "<tr><td colspan='3'>等待趨勢形成</td></tr>";
-                document.getElementById('lBody').innerHTML = render(lRes) || "<tr><td colspan='3'>等待縮轉放</td></tr>";
+                document.getElementById('sBody').innerHTML = render(sRes);
+                document.getElementById('lBody').innerHTML = render(lRes);
                 
-                status.innerText = "✅ 4H 數據已就緒: " + new Date().toLocaleTimeString();
+                status.innerText = "✅ 已過濾無用指數: " + new Date().toLocaleTimeString();
             } catch (err) {
-                status.innerText = "❌ 請求超時";
+                status.innerText = "❌ 刷新失敗";
             }
             btn.disabled = false;
         }
