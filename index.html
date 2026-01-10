@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>幣安量能篩選器 - 全市場終極版</title>
+    <style>
+        body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 20px; }
+        .wrapper { max-width: 1300px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2b3139; padding-bottom: 20px; }
+        .refresh-btn { background: #f0b90b; color: #000; border: none; padding: 18px 50px; border-radius: 12px; font-weight: bold; font-size: 22px; cursor: pointer; box-shadow: 0 0 15px rgba(240,185,11,0.4); }
+        .refresh-btn:disabled { background: #474d57; color: #848e9c; }
+        .info-box { background: rgba(240,185,11,0.1); border: 1px solid #f0b90b; padding: 15px; border-radius: 10px; margin: 20px 0; line-height: 1.6; }
+        .grid { display: flex; gap: 20px; }
+        .column { flex: 1; background: #181a20; padding: 20px; border-radius: 15px; border: 1px solid #2b3139; }
+        .col-title { color: #f0b90b; font-size: 20px; font-weight: bold; border-left: 5px solid #f0b90b; padding-left: 10px; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; color: #848e9c; font-size: 13px; border-bottom: 1px solid #2b3139; padding: 10px; }
+        td { padding: 12px 10px; border-bottom: 1px solid #2b3139; }
+        .symbol { color: #f0b90b; font-weight: bold; }
+        .ratio { color: #02c076; font-weight: bold; font-size: 16px; }
+        .status-msg { text-align: center; color: #f0b90b; font-weight: bold; padding: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div class="header">
+        <h1>📊 全市場量能監控</h1>
+        <button id="mainBtn" class="refresh-btn" onclick="startScan()">🔄 立即刷新全市場</button>
+    </div>
+
+    <div class="info-box">
+        <b>💡 偵測說明：</b><br>
+        1. <b>整理多久：</b> 基準線為過去 <b>3 天 (72 小時)</b> 的平均成交量。<br>
+        2. <b>放量多久：</b> 左欄偵測 <b>最近 30 分鐘</b>；右欄偵測 <b>最近 8 小時</b>。
+    </div>
+
+    <div id="progress" class="status-msg"></div>
+
+    <div class="grid">
+        <div class="column">
+            <div class="col-title">⚡ 短線爆發 (30分鐘)</div>
+            <table>
+                <thead><tr><th>幣種</th><th>量比</th><th>說明</th></tr></thead>
+                <tbody id="shortBody"></tbody>
+            </table>
+        </div>
+        <div class="column">
+            <div class="col-title">🧱 波段鋪墊 (8小時)</div>
+            <table>
+                <thead><tr><th>幣種</th><th>量比</th><th>說明</th></tr></thead>
+                <tbody id="longBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function getVolData(s) {
+        try {
+            const h = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=72`).then(r => r.json());
+            const base = h.map(k => parseFloat(k[7])).reduce((a,b)=>a+b,0) / 72 / 12;
+            const m = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=5m&limit=100`).then(r => r.json());
+            const v = m.map(k => parseFloat(k[7]));
+            return { s, rS: (v.slice(-6).reduce((a,b)=>a+b,0)/6)/base, rL: (v.reduce((a,b)=>a+b,0)/100)/base };
+        } catch(e) { return null; }
+    }
+
+    async function startScan() {
+        const btn = document.getElementById('mainBtn');
+        const prog = document.getElementById('progress');
+        btn.disabled = true;
+        prog.innerText = "正在掃描全市場，請稍候...";
+
+        try {
+            const info = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo').then(r => r.json());
+            const list = info.symbols.filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL').map(s => s.symbol);
+            
+            let sHTML = "", lHTML = "";
+            let sRes = [], lRes = [];
+
+            // 分小組處理，防止當機
+            for (let i = 0; i < list.length; i += 20) {
+                prog.innerText = `🔍 掃描中: ${i} / ${list.length}`;
+                const batch = await Promise.all(list.slice(i, i + 20).map(s => getVolData(s)));
+                batch.forEach(r => {
+                    if (r && r.rS > 2.5) sRes.push(r);
+                    if (r && r.rL > 2.0) lRes.push(r);
+                });
+            }
+
+            document.getElementById('shortBody').innerHTML = sRes.sort((a,b)=>b.rS-a.rS).map(r => `<tr><td class="symbol">${r.s}</td><td class="ratio">${r.rS.toFixed(1)}x</td><td>量縮突發</td></tr>`).join('');
+            document.getElementById('longBody').innerHTML = lRes.sort((a,b)=>b.rL-a.rL).map(r => `<tr><td class="symbol">${r.s}</td><td class="ratio">${r.rL.toFixed(1)}x</td><td>主力建倉</td></tr>`).join('');
+            prog.innerText = "✅ 更新於: " + new Date().toLocaleTimeString();
+        } catch(e) { prog.innerText = "❌ 掃描失敗"; }
+        btn.disabled = false;
+    }
+    startScan();
+</script>
+</body>
+</html>
