@@ -2,107 +2,120 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>量能監控-秒開靈敏版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>量能監控-專業回歸版</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #2b3139; }
-        .refresh-btn { background: #f0b90b; color: #000; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
-        .refresh-btn:disabled { background: #474d57; opacity: 0.6; }
-        .grid { display: flex; gap: 10px; flex-direction: column; }
+        body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 15px; margin: 0; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2b3139; padding-bottom: 15px; }
+        .refresh-btn { background: #f0b90b; color: #000; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .grid { display: flex; gap: 15px; flex-direction: column; }
         @media (min-width: 992px) { .grid { flex-direction: row; } }
         .column { flex: 1; background: #181a20; padding: 15px; border-radius: 12px; border: 1px solid #2b3139; margin-top: 10px; }
         .col-title { color: #f0b90b; font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+        .col-desc { color: #848e9c; font-size: 12px; margin-bottom: 15px; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; color: #848e9c; font-size: 12px; border-bottom: 1px solid #2b3139; padding: 8px 4px; }
-        td { padding: 12px 4px; border-bottom: 1px solid #2b3139; font-size: 15px; }
+        th { text-align: left; color: #848e9c; font-size: 12px; border-bottom: 1px solid #2b3139; padding: 8px 5px; }
+        td { padding: 10px 5px; border-bottom: 1px solid #2b3139; font-size: 14px; }
         .symbol { color: #f0b90b; font-weight: bold; }
-        .up { color: #02c076; font-weight: bold; }
+        .up { color: #02c076; }
         .down { color: #f84960; }
-        #status { text-align: center; color: #848e9c; font-size: 13px; margin: 10px 0; }
+        #status { text-align: center; color: #f0b90b; font-size: 14px; margin: 10px 0; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0; font-size: 18px;">📊 全市場監控</h2>
-        <button id="btn" class="refresh-btn" onclick="run()">🔄 刷新</button>
+        <h1 style="margin:0; font-size: 20px;">📊 量能監控 V4</h1>
+        <button id="btn" class="refresh-btn" onclick="run()">🔄 刷新數據</button>
     </div>
-    <div id="status">點擊刷新開始掃描全市場</div>
+    <div id="status">排除新幣，監控全市場中...</div>
     
     <div class="grid">
         <div class="column">
-            <div class="col-title">⚡ 短線異動 (30M)</div>
-            <div style="color:#848e9c; font-size:11px; margin-bottom:10px;">近 30 分鐘突然爆量 (反應最快)</div>
+            <div class="col-title">⚡ 短線爆發 (30M)</div>
+            <div class="col-desc">近 30 分鐘成交量異動，適合追突破</div>
             <table>
-                <thead><tr><th width="45%">幣種</th><th width="30%">量比</th><th width="25%">漲幅</th></tr></thead>
+                <thead><tr><th>幣種</th><th>量比</th><th>漲幅</th></tr></thead>
                 <tbody id="sBody"></tbody>
             </table>
         </div>
         <div class="column">
-            <div class="col-title">📈 起跑潛力 (8H)</div>
-            <div style="color:#848e9c; font-size:11px; margin-bottom:10px;">成交量穩定放大，漲幅未過 4%</div>
+            <div class="col-title">🧪 潛力吸籌 (8H)</div>
+            <div class="col-desc">低位橫盤 + 量能緩增 (不追高)</div>
             <table>
-                <thead><tr><th width="45%">幣種</th><th width="30%">量比</th><th width="25%">漲幅</th></tr></thead>
+                <thead><tr><th>幣種</th><th>量比</th><th>漲幅</th></tr></thead>
                 <tbody id="lBody"></tbody>
             </table>
         </div>
     </div>
 
     <script>
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+        async function fetchWithRetry(url, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) return await res.json();
+                } catch (e) {}
+                await sleep(500);
+            }
+            return null;
+        }
+
         async function getData(s) {
-            try {
-                // 優化請求，減少歷史數據長度，大幅提升刷新速度
-                const [h, m, t] = await Promise.all([
-                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=24`).then(r => r.json()),
-                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=5m&limit=48`).then(r => r.json()),
-                    fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r => r.json())
-                ]);
+            const [h, m, t] = await Promise.all([
+                fetchWithRetry(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=168`),
+                fetchWithRetry(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=5m&limit=100`),
+                fetchWithRetry(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`)
+            ]);
 
-                const baseVol = h.map(k => parseFloat(k[7])).reduce((a,b)=>a+b,0) / 24 / 12; // 24小時平均
-                const currentVols = m.map(k => parseFloat(k[7]));
-                const chg = parseFloat(t.priceChangePercent);
-                
-                const rS = (currentVols.slice(-6).reduce((a,b)=>a+b,0)/6)/baseVol; // 30M 量比
-                const rL = (currentVols.reduce((a,b)=>a+b,0)/48)/baseVol; // 4H 量比
+            if (!h || !m || !t || h.length < 168) return null;
 
-                return { s, rS, rL, chg };
-            } catch(e) { return null; }
+            const baseVol = h.map(k => parseFloat(k[7])).reduce((a,b)=>a+b,0) / 168 / 12;
+            const currentVols = m.map(k => parseFloat(k[7]));
+            const curPrice = parseFloat(t.lastPrice);
+            const highPrice = parseFloat(t.highPrice);
+            const lowPrice = parseFloat(t.lowPrice);
+            const chg = parseFloat(t.priceChangePercent);
+
+            const rS = (currentVols.slice(-6).reduce((a,b)=>a+b,0)/6)/baseVol;
+            const rL = (currentVols.reduce((a,b)=>a+b,0)/100)/baseVol;
+
+            // 嚴格判定：價格在日內波幅的 40% 以下 (底部) 且沒有噴過
+            const isBottom = ((curPrice - lowPrice) / (highPrice - lowPrice)) < 0.4;
+
+            return { s, rS, rL, chg, isBottom };
         }
 
         async function run() {
             const btn = document.getElementById('btn');
             const status = document.getElementById('status');
             btn.disabled = true;
-            status.innerText = "🚀 正在全速掃描中...";
+            status.innerText = "🔍 正在深度掃描全市場...";
             
             const info = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo').then(r => r.json());
             const list = info.symbols.filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL').map(s => s.symbol);
             
             let sRes = [], lRes = [];
-            // 並行請求加快速度
-            const batchSize = 30; 
+            const batchSize = 15;
             for (let i = 0; i < list.length; i += batchSize) {
+                status.innerText = `🔍 掃描進度: ${Math.round(i/list.length*100)}%`;
                 const batch = await Promise.all(list.slice(i, i + batchSize).map(s => getData(s)));
                 batch.forEach(r => {
                     if(r) {
-                        // 左邊：量比 > 1.8 就進榜
-                        if(r.rS > 1.8) sRes.push(r);
-                        // 右邊：量比 > 1.2 且 漲幅在 0~4% 之間 (剛開始發力)
-                        if(r.rL > 1.2 && r.chg > 0 && r.chg < 4) lRes.push(r);
+                        if(r.rS > 2.5) sRes.push(r);
+                        if(r.rL > 1.5 && r.isBottom && r.chg < 4) lRes.push(r);
                     }
                 });
+                await sleep(150); 
             }
 
-            const render = (items, key) => items.sort((a,b)=>b[key]-a[key]).slice(0, 15).map(r => `
-                <tr>
-                    <td class="symbol">${r.s.replace('USDT','')}</td>
-                    <td style="color:#02c076; font-weight:bold;">${r[key].toFixed(1)}x</td>
-                    <td class="${r.chg>=0?'up':'down'}">${r.chg>=0?'+':''}${r.chg.toFixed(1)}%</td>
-                </tr>`).join('');
+            const fmt = (c) => `<span class="${c>=0?'up':'down'}">${c>=0?'+':''}${c.toFixed(2)}%</span>`;
+            const render = (arr, key) => arr.sort((a,b)=>b[key]-a[key]).slice(0, 15).map(r => `<tr><td class="symbol">${r.s.replace('USDT','')}</td><td>${r[key].toFixed(1)}x</td><td>${fmt(r.chg)}</td></tr>`).join('');
 
-            document.getElementById('sBody').innerHTML = render(sRes, 'rS') || '<tr><td colspan="3">等待爆發</td></tr>';
-            document.getElementById('lBody').innerHTML = render(lRes, 'rL') || '<tr><td colspan="3">等待起步</td></tr>';
-            status.innerText = "✅ 完成時間: " + new Date().toLocaleTimeString();
+            document.getElementById('sBody').innerHTML = render(sRes, 'rS') || "<tr><td colspan='3'>無訊號</td></tr>";
+            document.getElementById('lBody').innerHTML = render(lRes, 'rL') || "<tr><td colspan='3'>無訊號</td></tr>";
+            status.innerText = "✅ 掃描完成 - " + new Date().toLocaleTimeString();
             btn.disabled = false;
         }
         run();
