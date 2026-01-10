@@ -2,30 +2,62 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>量能監控 V51 - 戰術清單管理</title>
+    <title>量能監控 V52 - 大局觀導航版</title>
     <style>
-        body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
-        .column { background: #181a20; padding: 15px; border-radius: 12px; border: 1px solid #2b3139; min-height: 650px; }
+        body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; overflow-x: hidden; }
+        
+        /* 頂部導航列樣式 */
+        .market-dashboard {
+            display: flex; gap: 20px; background: #1e2329; padding: 12px 20px; border-radius: 8px;
+            margin-bottom: 15px; border: 1px solid #2b3139; align-items: center; justify-content: flex-start;
+        }
+        .stat-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .stat-label { color: #848e9c; font-weight: bold; }
+        .stat-value { font-weight: 800; font-family: 'Roboto Mono', monospace; }
+        .market-heat-bar { display: flex; width: 150px; height: 8px; border-radius: 4px; overflow: hidden; background: #474d57; }
+        .heat-up { background: #02c076; transition: width 0.5s; }
+        .heat-down { background: #f84960; transition: width 0.5s; }
+
+        /* 格局與其他樣式維持 V51 */
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .column { background: #181a20; padding: 15px; border-radius: 12px; border: 1px solid #2b3139; min-height: 600px; }
         .col-title { color: #f0b90b; font-size: 16px; font-weight: bold; margin-bottom: 10px; border-left: 4px solid #f0b90b; padding-left: 8px; }
         table { width: 100%; border-collapse: collapse; }
         td { padding: 8px 5px; border-bottom: 1px solid #2b3139; font-size: 12px; }
         .symbol { color: #f0b90b; font-weight: bold; font-size: 14px; }
         .up { color: #02c076; font-weight: bold; }
+        .down { color: #f84960; font-weight: bold; }
         .accum-up { background: #02c076; color: #fff; padding: 2px 4px; border-radius: 3px; font-size: 10px; }
         .tag-awake { background: rgba(240, 185, 11, 0.2); color: #f0b90b; padding: 2px 4px; border-radius: 4px; font-size: 10px; }
-        
-        /* 第四欄專用 */
-        .breakout { background: rgba(58, 110, 255, 0.3) !important; transition: 0.3s; }
-        .del-btn { color: #f84960; cursor: pointer; font-weight: bold; padding: 0 5px; font-size: 14px; border: 1px solid #f84960; border-radius: 3px; margin-left: 5px; }
-        .del-btn:hover { background: #f84960; color: white; }
+        .breakout { background: rgba(58, 110, 255, 0.3) !important; }
+        .del-btn { color: #f84960; cursor: pointer; font-weight: bold; border: 1px solid #f84960; border-radius: 3px; padding: 0 4px; font-size: 12px; }
         .tag-fire { background: #3a6eff; color: white; padding: 1px 4px; border-radius: 3px; font-weight: bold; font-size: 10px; }
     </style>
 </head>
 <body>
-    <div style="display:flex; justify-content:space-between; padding:10px; align-items: center;">
-        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V51 (戰術清單管理)</h2>
-        <div id="timer" style="color:#848e9c;">5s 刷新</div>
+
+    <div class="market-dashboard">
+        <div class="stat-item">
+            <span class="stat-label">BTC:</span>
+            <span id="btcPrice" class="stat-value">--</span>
+            <span id="btcChg" class="stat-value">--</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">ETH:</span>
+            <span id="ethPrice" class="stat-value">--</span>
+            <span id="ethChg" class="stat-value">--</span>
+        </div>
+        <div style="border-left: 1px solid #474d57; height: 20px; margin: 0 10px;"></div>
+        <div class="stat-item">
+            <span class="stat-label">漲跌分佈:</span>
+            <span id="upCount" class="up">0</span>
+            <div class="market-heat-bar">
+                <div id="upBar" class="heat-up" style="width: 50%"></div>
+                <div id="downBar" class="heat-down" style="width: 50%"></div>
+            </div>
+            <span id="downCount" class="down">0</span>
+        </div>
+        <div id="timer" style="margin-left: auto; color:#848e9c; font-size: 12px;">5s 刷新</div>
     </div>
     
     <div class="grid">
@@ -34,7 +66,6 @@
         <div class="column"><div class="col-title">📈 盤整量增 (2H)</div><table><tbody id="sidewaysBody"></tbody></table></div>
         <div class="column">
             <div class="col-title">💎 低位轉折清單 (上限15)</div>
-            <div style="font-size:10px; color:#848e9c; margin-bottom:5px;">手動刪除不喜歡的標的，新幣會自動補位</div>
             <table><tbody id="pivotBody"></tbody></table>
         </div>
     </div>
@@ -44,21 +75,17 @@
 
     <script>
         let lastPrices = new Map(), firstDetectedPrices = new Map(), maxPriceRecorded = new Map();
-        let burstHistory = [];
-        let manualPivotList = []; // 第四欄固定清單
-        let blacklist = new Set(); // 暫時過濾掉不想看的
+        let burstHistory = [], manualPivotList = [], blacklist = new Set();
         let timeLeft = 5;
 
-        // 模擬 MA 計算
         function getSimulatedMA(price, change24h) {
             let estOpen = price / (1 + change24h/100);
             return (price + estOpen) / 2;
         }
 
-        // 手動刪除功能
         function removeSymbol(s) {
             manualPivotList = manualPivotList.filter(item => item.s !== s);
-            blacklist.add(s); // 加入黑名單，避免下一秒刷新又跑出來
+            blacklist.add(s);
             renderPivot();
         }
 
@@ -66,7 +93,8 @@
             try {
                 const resp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
                 const tickers = await resp.json();
-                let trendRes = [], awakeRes = [];
+                let trendRes = [], awakeRes = [], currentPivots = [];
+                let upC = 0, downC = 0;
                 let now = Date.now();
                 let playBurst = false, playTing = false;
 
@@ -77,7 +105,22 @@
                     const vol24h = parseFloat(t.quoteVolume);
                     const high = parseFloat(t.highPrice);
                     
-                    // 1. 基礎數據更新
+                    // 市場統計
+                    if (chg24 > 0) upC++; else if (chg24 < 0) downC++;
+
+                    // BTC & ETH 特別顯示
+                    if (symbol === 'BTC') {
+                        document.getElementById('btcPrice').innerText = curP.toLocaleString();
+                        document.getElementById('btcChg').innerText = (chg24 > 0 ? '+' : '') + chg24 + '%';
+                        document.getElementById('btcChg').className = 'stat-value ' + (chg24 >= 0 ? 'up' : 'down');
+                    }
+                    if (symbol === 'ETH') {
+                        document.getElementById('ethPrice').innerText = curP.toLocaleString();
+                        document.getElementById('ethChg').innerText = (chg24 > 0 ? '+' : '') + chg24 + '%';
+                        document.getElementById('ethChg').className = 'stat-value ' + (chg24 >= 0 ? 'up' : 'down');
+                    }
+
+                    // 1. 瞬間變動
                     let secChg = lastPrices.has(symbol) ? ((curP - lastPrices.get(symbol)) / lastPrices.get(symbol)) * 100 : 0;
                     lastPrices.set(symbol, curP);
 
@@ -97,38 +140,37 @@
                     const realB = (vol24h / 450) / (vol24h / 1440);
                     if (Math.abs(chg24) < 3.5 && realB > 1.1) awakeRes.push({ s: symbol, b: realB });
 
-                    // 5. 右一：低位麻花邏輯
+                    // 5. 右一：低位麻花
                     let ma7 = getSimulatedMA(curP, chg24), ma25 = getSimulatedMA(curP, chg24), ma99 = getSimulatedMA(curP, chg24);
                     let maGap = (Math.max(ma7, ma25, ma99) / Math.min(ma7, ma25, ma99) - 1) * 100;
-                    
-                    // 如果符合麻花條件且不在名單中、不在黑名單內
                     if (maGap < 1.5 && chg24 > -5 && chg24 < 3 && !blacklist.has(symbol)) {
                         let isBreakout = curP > Math.max(ma7, ma25, ma99);
-                        
                         let idx = manualPivotList.findIndex(p => p.s === symbol);
                         if (idx === -1) {
-                            // 名單未滿 15 則加入
                             if (manualPivotList.length < 15) {
                                 manualPivotList.push({ s: symbol, gap: maGap, breakout: isBreakout, alerted: isBreakout });
                                 if (isBreakout) playTing = true;
                             }
                         } else {
-                            // 已在名單中，更新狀態
                             let item = manualPivotList[idx];
                             if (isBreakout && !item.alerted) { playTing = true; item.alerted = true; }
-                            item.gap = maGap;
-                            item.breakout = isBreakout;
+                            item.gap = maGap; item.breakout = isBreakout;
                         }
                     }
                 });
 
+                // 更新頂部統計數據
+                document.getElementById('upCount').innerText = upC;
+                document.getElementById('downCount').innerText = downC;
+                let total = upC + downC;
+                document.getElementById('upBar').style.width = (upC / total * 100) + '%';
+                document.getElementById('downBar').style.width = (downC / total * 100) + '%';
+
                 if (playBurst) document.getElementById('alertSound').play().catch(()=>{});
                 if (playTing && !playBurst) document.getElementById('tingSound').play().catch(()=>{});
 
-                // 渲染前三欄
                 renderBasics(trendRes, awakeRes);
                 renderPivot();
-                
             } catch (e) { console.error(e); }
         }
 
