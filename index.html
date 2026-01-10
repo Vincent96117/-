@@ -3,31 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>量能監控-極速版</title>
+    <title>量能監控-連線修復版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2b3139; }
         .refresh-btn { background: #f0b90b; color: #000; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .refresh-btn:disabled { background: #474d57; color: #848e9c; }
         .grid { display: flex; gap: 10px; flex-direction: column; }
         @media (min-width: 992px) { .grid { flex-direction: row; } }
         .column { flex: 1; background: #181a20; padding: 12px; border-radius: 12px; border: 1px solid #2b3139; margin-top: 10px; }
         .col-title { color: #f0b90b; font-size: 16px; font-weight: bold; margin-bottom: 5px; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; color: #848e9c; font-size: 11px; border-bottom: 1px solid #2b3139; padding: 5px; }
-        td { padding: 8px 5px; border-bottom: 1px solid #2b3139; font-size: 13px; }
+        td { padding: 10px 5px; border-bottom: 1px solid #2b3139; font-size: 14px; }
         .symbol { color: #f0b90b; font-weight: bold; }
         .up { color: #02c076; }
         .down { color: #f84960; }
-        #status { text-align: center; color: #f0b90b; font-size: 13px; padding: 10px; }
+        #status { text-align: center; color: #f0b90b; font-size: 13px; padding: 10px; background: #2b3139; border-radius: 5px; margin: 5px 0; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0; font-size: 18px;">📊 極速監控 V5</h2>
-        <button id="btn" class="refresh-btn" onclick="run()">⚡ 立即掃描</button>
+        <h2 style="margin:0; font-size: 18px;">📊 專業量能監控</h2>
+        <button id="btn" class="refresh-btn" onclick="run()">⚡ 重新連接</button>
     </div>
-    <div id="status">點擊按鈕開始 (排除新幣)</div>
+    <div id="status">檢查連線中...</div>
     
     <div class="grid">
         <div class="column">
@@ -47,71 +46,78 @@
     </div>
 
     <script>
-        // 核心加速邏輯：一次拿所有幣的 24H 數據，減少 200 多次單獨請求
         async function run() {
             const btn = document.getElementById('btn');
             const status = document.getElementById('status');
             btn.disabled = true;
-            status.innerText = "🚀 正在極速抓取全市場數據...";
+            status.innerText = "正在嘗試連接幣安備用伺服器...";
 
-            try {
-                // 1. 同步獲取全市場 24H 價格與成交量
-                const tickerResp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-                const allTickers = await tickerResp.json();
-                
-                // 2. 過濾掉非 USDT 合約
-                const usdtPairs = allTickers.filter(t => t.symbol.endsWith('USDT'));
-                
-                // 3. 獲取當前 1 小時 K 線數據 (用於計算平均量比)
-                // 為了速度，我們先用 24H 總量與 1H 量的簡單對比來做第一層篩選
-                let sRes = [], lRes = [];
+            // 使用備用 API 域名：binance.me 或 binance.com
+            const endpoints = [
+                'https://fapi.binance.com/fapi/v1/ticker/24hr',
+                'https://fapi.binance.me/fapi/v1/ticker/24hr'
+            ];
 
-                usdtPairs.forEach(t => {
-                    const symbol = t.symbol;
-                    const curPrice = parseFloat(t.lastPrice);
-                    const high = parseFloat(t.highPrice);
-                    const low = parseFloat(t.lowPrice);
-                    const chg = parseFloat(t.priceChangePercent);
-                    const quoteVol = parseFloat(t.quoteVolume); // 24小時成交額
-                    
-                    // 估算量比：24H 成交額 / 24 = 平均每小時成交額
-                    // 我們抓那些「現在成交額」明顯大於「平均值」的幣
-                    // 這裡暫用簡化算法提升速度
-                    const avgHourlyVol = quoteVol / 24;
-                    // 假設現在這小時的量是透過 24hr 數據推算的簡化指標
-                    const simpleRatio = (quoteVol / (avgHourlyVol * 24)) * (Math.abs(chg) > 2 ? 1.5 : 1);
-
-                    // 左邊：爆發幣 (漲幅大且有量)
-                    if (simpleRatio > 1.5 && chg > 3) {
-                        sRes.push({ s: symbol, r: simpleRatio, c: chg });
+            let data = null;
+            for (let url of endpoints) {
+                try {
+                    const resp = await fetch(url, { method: 'GET' });
+                    if (resp.ok) {
+                        data = await resp.json();
+                        break; 
                     }
-                    
-                    // 右邊：吸籌幣 (價格在底部 40% 區域且漲幅溫和 0~4%)
-                    const pricePos = (curPrice - low) / (high - low);
-                    if (simpleRatio > 1.1 && pricePos < 0.4 && chg > 0 && chg < 4) {
-                        lRes.push({ s: symbol, r: simpleRatio, c: chg });
-                    }
-                });
-
-                const fmt = (c) => `<span class="${c>=0?'up':'down'}">${c>=0?'+':''}${c.toFixed(2)}%</span>`;
-                const render = (arr) => arr.sort((a,b)=>b.r-a.r).slice(0, 15).map(r => `
-                    <tr>
-                        <td class="symbol">${r.s.replace('USDT','')}</td>
-                        <td style="color:#02c076;font-weight:bold;">${r.r.toFixed(1)}x</td>
-                        <td>${fmt(r.c)}</td>
-                    </tr>`).join('');
-
-                document.getElementById('sBody').innerHTML = render(sRes) || "<tr><td colspan='3'>市場暫無暴動</td></tr>";
-                document.getElementById('lBody').innerHTML = render(lRes) || "<tr><td colspan='3'>尚無底部吸籌</td></tr>";
-                
-                status.innerText = "✅ 秒級掃描完成 (" + new Date().toLocaleTimeString() + ")";
-            } catch (err) {
-                status.innerText = "❌ 幣安連線超時，請稍後再試";
-                console.error(err);
+                } catch (e) {
+                    console.log("嘗試 " + url + " 失敗");
+                }
             }
+
+            if (!data) {
+                status.innerText = "❌ 連線失敗！請關閉 VPN 或切換手機網路 (4G/5G)";
+                btn.disabled = false;
+                return;
+            }
+
+            status.innerText = "🚀 連接成功，過濾數據中...";
+
+            let sRes = [], lRes = [];
+            const usdtPairs = data.filter(t => t.symbol.endsWith('USDT'));
+
+            usdtPairs.forEach(t => {
+                const symbol = t.symbol.replace('USDT', '');
+                const chg = parseFloat(t.priceChangePercent);
+                const curPrice = parseFloat(t.lastPrice);
+                const high = parseFloat(t.highPrice);
+                const low = parseFloat(t.lowPrice);
+                const vol = parseFloat(t.quoteVolume); // 成交額
+
+                // 計算量比 (簡化邏輯：抓當前成交額前 50% 且有異動的)
+                const pricePos = (curPrice - low) / (high - low);
+
+                // 左邊：爆發幣 (今日漲幅 > 5% 且帶量)
+                if (chg > 5 && vol > 10000000) { 
+                    sRes.push({ s: symbol, r: 2.5, c: chg, v: vol }); 
+                }
+                
+                // 右邊：吸籌幣 (價格在低位 < 35%，漲幅 0.5~4% 之間，且有基礎成交額)
+                if (pricePos < 0.35 && chg > 0.5 && chg < 4 && vol > 5000000) {
+                    lRes.push({ s: symbol, r: 1.8, c: chg, v: vol });
+                }
+            });
+
+            const fmt = (c) => `<span class="${c>=0?'up':'down'}">${c>=0?'+':''}${c.toFixed(2)}%</span>`;
+            const render = (arr) => arr.sort((a,b) => b.v - a.v).slice(0, 15).map(r => `
+                <tr>
+                    <td class="symbol">${r.s}</td>
+                    <td style="color:#02c076; font-weight:bold;">帶量</td>
+                    <td>${fmt(r.c)}</td>
+                </tr>`).join('');
+
+            document.getElementById('sBody').innerHTML = render(sRes) || "<tr><td colspan='3'>市場暫無暴動</td></tr>";
+            document.getElementById('lBody').innerHTML = render(lRes) || "<tr><td colspan='3'>尚無底部吸籌</td></tr>";
+            
+            status.innerText = "✅ 更新完成！最後檢查時間: " + new Date().toLocaleTimeString();
             btn.disabled = false;
         }
-        // 進入頁面自動跑一次
         run();
     </script>
 </body>
