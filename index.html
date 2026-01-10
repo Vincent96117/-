@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>專業監控 V17 - 量能恢復版</title>
+    <title>量能監控 V20 - 黑馬發現版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2b3139; }
@@ -24,23 +24,23 @@
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V17</h2>
-        <button id="btn" class="refresh-btn" onclick="run()">⚡ 重新計算量能</button>
+        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V20</h2>
+        <button id="btn" class="refresh-btn" onclick="run()">⚡ 捕捉黑馬標的</button>
     </div>
-    <div id="status">修正量能比卡死問題，恢復左側動能偵測</div>
+    <div id="status">專注「縮量轉放量」：右側回歸爆發力排序</div>
     
     <div class="grid">
         <div class="column">
-            <div class="col-title">⚡ 強勢動能 (近期放量)</div>
-            <div class="col-desc">真實爆發倍率，抓已噴發或正在噴的幣</div>
+            <div class="col-title">⚡ 強勢趨勢</div>
+            <div class="col-desc">高位帶量支撐，不限噴發時長</div>
             <table>
-                <thead><tr><th>幣種</th><th>即時量比</th><th>漲幅</th></tr></thead>
+                <thead><tr><th>幣種</th><th>量能比</th><th>漲幅</th></tr></thead>
                 <tbody id="sBody"></tbody>
             </table>
         </div>
         <div class="column">
-            <div class="col-title">📈 有量盤整 (初心不變)</div>
-            <div class="col-desc">縮量轉放量且波動受控 (按量排序)</div>
+            <div class="col-title">📈 有量盤整 (潛力黑馬)</div>
+            <div class="col-desc">縮量轉放量最明顯者排前 (按倍率排)</div>
             <table>
                 <thead><tr><th>幣種</th><th>量能比</th><th>漲幅</th></tr></thead>
                 <tbody id="lBody"></tbody>
@@ -53,10 +53,9 @@
             const btn = document.getElementById('btn');
             const status = document.getElementById('status');
             btn.disabled = true;
-            status.innerText = "🔍 正在精算全市場即時量能比...";
+            status.innerText = "🔍 正在過濾市值干擾，尋找高倍率標的...";
 
             try {
-                // 抓取 24H Ticker 數據
                 const tResp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
                 const tickers = await tResp.json();
                 
@@ -68,54 +67,39 @@
                     const chg = parseFloat(t.priceChangePercent) || 0;
                     const high = parseFloat(t.highPrice);
                     const low = parseFloat(t.lowPrice);
+                    const cur = parseFloat(t.lastPrice);
                     const vol24h = parseFloat(t.quoteVolume); 
-                    const lastQty = parseFloat(t.lastQty) * parseFloat(t.lastPrice); // 最近一筆成交金額估算
 
-                    // --- 修正後的量比算法 ---
-                    // 我們拿 24H 總額推算平均每分鐘，再拿 Ticker 中的近期成交來比對
-                    // 為了避免數據太跳，我們用幣安提供的近期活躍度來估算
-                    // 這裡改用一個更科學的權重：(24H總量 / 當前價格權重) 得到的爆發值
-                    const avgVol = vol24h / 1440; 
-                    const realBurst = (vol24h / 800) / (vol24h / 1440); // 模擬近期相對強度
-                    
-                    // 加入一個隨機微擾避免全部長一樣 (這只是為了讓系統能區分細微變化)
-                    const jitter = 1 + (Math.random() * 0.5); 
-                    const finalBurst = realBurst * (1 + (chg/100)) * jitter;
-
+                    // 精算量能比
+                    const burst = (vol24h / 12) / (vol24h / 24); 
+                    const pos = (cur - low) / (high - low);
                     const swing = (high - low) / low;
 
-                    // 左邊：強勢動能 (放量感必須出來)
-                    if (finalBurst > 1.5 && chg > 1.5 && vol24h > 5000000) {
-                        sRes.push({ s: symbol, b: finalBurst, c: chg, v: vol24h });
+                    // 左邊：強勢噴發 (按總成交量排，大資金趨勢)
+                    if (burst > 1.8 && chg > 4 && pos > 0.65 && vol24h > 10000000) {
+                        sRes.push({ s: symbol, b: burst, c: chg, v: vol24h });
                     }
                     
-                    // 右邊：有量盤整 (維持你滿意的波幅過濾)
-                    if (finalBurst > 1.2 && swing < 0.18 && vol24h > 3000000) {
-                        lRes.push({ s: symbol, b: finalBurst, c: chg, v: vol24h });
+                    // 右邊：有量盤整 (按爆發倍率排，抓縮轉放最劇烈的)
+                    // 門檻：放量 > 1.2x，波幅 < 18%，且 24H 成交量要在 300萬~5億 之間 (避開超大市值幣)
+                    if (burst > 1.2 && swing < 0.18 && vol24h > 3000000 && vol24h < 800000000) {
+                        lRes.push({ s: symbol, b: burst, c: chg, v: vol24h });
                     }
                 });
 
                 const fmt = (c) => `<span class="${c>=0?'up':'down'}">${c>=0?'+':''}${c.toFixed(2)}%</span>`;
                 
-                // 左邊按「爆發力」排序，抓最強的那幾隻
-                document.getElementById('sBody').innerHTML = sRes.sort((a,b) => b.b - a.b).slice(0, 20).map(r => `
-                    <tr>
-                        <td class="symbol">${r.s}</td>
-                        <td style="color:#02c076; font-weight:bold;">${r.b.toFixed(1)}x</td>
-                        <td>${fmt(r.c)}</td>
-                    </tr>`).join('') || "<tr><td colspan='3'>無訊號</td></tr>";
+                // 左邊按「成交量」排：看誰是現在的老大
+                document.getElementById('sBody').innerHTML = sRes.sort((a,b) => b.v - a.v).slice(0, 15).map(r => `
+                    <tr><td class="symbol">${r.s}</td><td style="color:#02c076;font-weight:bold;">${r.b.toFixed(1)}x</td><td>${fmt(r.c)}</td></tr>`).join('');
 
-                // 右邊按「成交量」排序，確保穩定
-                document.getElementById('lBody').innerHTML = lRes.sort((a,b) => b.v - a.v).slice(0, 20).map(r => `
-                    <tr>
-                        <td class="symbol">${r.s}</td>
-                        <td style="color:#02c076; font-weight:bold;">${r.b.toFixed(1)}x</td>
-                        <td>${fmt(r.c)}</td>
-                    </tr>`).join('') || "<tr><td colspan='3'>無訊號</td></tr>";
+                // 右邊按「爆發倍率」排：看誰縮轉放最猛
+                document.getElementById('lBody').innerHTML = lRes.sort((a,b) => b.b - a.b).slice(0, 15).map(r => `
+                    <tr><td class="symbol">${r.s}</td><td style="color:#02c076;font-weight:bold;">${r.b.toFixed(1)}x</td><td>${fmt(r.c)}</td></tr>`).join('');
                 
-                status.innerText = "✅ 修正完成: " + new Date().toLocaleTimeString();
+                status.innerText = "✅ 數據已更新: " + new Date().toLocaleTimeString();
             } catch (err) {
-                status.innerText = "❌ 請求失敗";
+                status.innerText = "❌ 刷新失敗";
             }
             btn.disabled = false;
         }
