@@ -2,40 +2,42 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>量能監控 V32 - 真實 1% 噴發修正版</title>
+    <title>量能監控 V35 - 10筆精華版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2b3139; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 10px; }
-        .column { background: #181a20; padding: 15px; border-radius: 12px; border: 1px solid #2b3139; min-height: 450px; }
-        .col-title { color: #f0b90b; font-size: 16px; font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        td { padding: 12px 5px; border-bottom: 1px solid #2b3139; font-size: 14px; }
-        .symbol { color: #f0b90b; font-weight: bold; }
+        .column { background: #181a20; padding: 15px; border-radius: 12px; border: 1px solid #2b3139; min-height: 500px; }
+        .col-title { color: #f0b90b; font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+        .col-info { color: #848e9c; font-size: 10px; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 6px 5px; border-bottom: 1px solid #2b3139; font-size: 13px; }
+        .symbol { color: #f0b90b; font-weight: bold; font-size: 14px; }
         .up { color: #02c076; font-weight: bold; }
-        .down { color: #f84960; }
-        .real-flash { background: rgba(2, 192, 118, 0.3); animation: flash 1s; }
-        @keyframes flash { from { background: rgba(2, 192, 118, 0.5); } to { background: transparent; } }
+        .time-tag { color: #848e9c; font-size: 11px; }
+        .burst-tag { background: #2b3139; color: #02c076; padding: 2px 4px; border-radius: 4px; font-size: 10px; }
+        .new-row { animation: highlight 1.5s ease-out; }
+        @keyframes highlight { from { background: rgba(2, 192, 118, 0.3); } to { background: transparent; } }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0;">📊 專業監控 V32 (修正 1% 真實噴發)</h2>
+        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V35 (10筆精華)</h2>
         <div id="timer" style="color:#848e9c;">5s 刷新</div>
     </div>
     
     <div class="grid">
         <div class="column">
-            <div class="col-title">⚡ 瞬間 1% 爆發 (警報)</div>
-            <div style="font-size:10px; color:#848e9c;">僅顯示「當下」真正帶量拉升標的</div>
+            <div class="col-title">⚡ 噴發情報 (限10筆)</div>
+            <div class="col-info">自動刪除最舊紀錄，保持最即時狀態</div>
             <table><tbody id="instantBody"></tbody></table>
         </div>
         <div class="column">
-            <div class="col-title">🔥 強勢波段維持</div>
+            <div class="col-title">🔥 24H 強勢榜</div>
             <table><tbody id="trendBody"></tbody></table>
         </div>
         <div class="column">
-            <div class="col-title">📈 縮量盤整埋伏</div>
+            <div class="col-title">📈 縮量盤整區</div>
             <table><tbody id="sidewaysBody"></tbody></table>
         </div>
     </div>
@@ -43,62 +45,67 @@
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
 
     <script>
-        let priceMap = new Map(); // 記錄上一輪價格
-        let prevInstant = new Set();
-        let timeLeft = 5; // 縮短到 5 秒，為了抓即時波動
+        let lastPrices = new Map(); 
+        let burstHistory = []; 
+        let timeLeft = 5;
 
         async function run() {
             try {
-                const tResp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-                const tickers = await tResp.json();
-                let instantRes = [], trendRes = [], sidewaysRes = [];
-                let currentInstant = new Set();
+                const resp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+                const tickers = await resp.json();
+                let trendRes = [], sidewaysRes = [];
+                let now = new Date();
 
                 tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_')).forEach(t => {
                     const symbol = t.symbol.replace('USDT', '');
-                    const lastPrice = parseFloat(t.lastPrice);
-                    const chg24h = parseFloat(t.priceChangePercent);
+                    const curPrice = parseFloat(t.lastPrice);
                     const vol24h = parseFloat(t.quoteVolume);
+                    const chg24h = parseFloat(t.priceChangePercent);
                     const high = parseFloat(t.highPrice), low = parseFloat(t.lowPrice);
                     const swing = (high - low) / low;
-                    
-                    // --- 修正核心：計算「即時變動率」 ---
-                    let realTimeChange = 0;
-                    if (priceMap.has(symbol)) {
-                        const oldPrice = priceMap.get(symbol);
-                        realTimeChange = ((lastPrice - oldPrice) / oldPrice) * 100;
+
+                    let secChange = 0;
+                    if (lastPrices.has(symbol)) {
+                        const oldPrice = lastPrices.get(symbol);
+                        secChange = ((curPrice - oldPrice) / oldPrice) * 100;
                     }
-                    priceMap.set(symbol, lastPrice); // 更新價格紀錄
+                    lastPrices.set(symbol, curPrice);
 
-                    const realBurst = (vol24h / 1440) > 0 ? (vol24h / 400) / (vol24h / 1440) : 0;
+                    const realBurst = (vol24h / 1440) > 0 ? (vol24h / 450) / (vol24h / 1440) : 0;
 
-                    // 1. 噴發欄：必須是「即時漲幅」大於 0.8% 且「爆發力」強 (不再只看 24H)
-                    if (realTimeChange >= 0.8 && realBurst > 3.0 && vol24h > 5000000) {
-                        instantRes.push({ s: symbol, b: realBurst, c: realTimeChange, isNew: true });
-                        currentInstant.add(symbol);
+                    // 噴發判定 (5秒漲幅 > 0.45%)
+                    if (secChange >= 0.45 && realBurst > 2.5 && vol24h > 5000000) {
+                        burstHistory = burstHistory.filter(item => item.s !== symbol);
+                        burstHistory.unshift({
+                            s: symbol, b: realBurst, c: secChange,
+                            t: now.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                            ts: Date.now()
+                        });
+
+                        // 【修改點】：上限改為 10 筆
+                        if (burstHistory.length > 10) {
+                            burstHistory.pop(); 
+                        }
+                        document.getElementById('alertSound').play().catch(()=>{});
                     } 
-                    // 2. 趨勢欄：24H 強勢標的
-                    else if (chg24h >= 5.0 && vol24h > 10000000) {
-                        trendRes.push({ s: symbol, b: realBurst, c: chg24h });
-                    }
-                    // 3. 盤整欄
-                    else if (Math.abs(chg24h) < 2.5 && swing < 0.2 && vol24h > 3000000) {
-                        sidewaysRes.push({ s: symbol, b: realBurst, c: chg24h });
-                    }
+                    
+                    if (chg24h >= 5.5 && vol24h > 10000000) trendRes.push({ s: symbol, b: realBurst, c: chg24h });
+                    else if (Math.abs(chg24h) < 2.5 && swing < 0.22 && vol24h > 3000000) sidewaysRes.push({ s: symbol, b: realBurst, c: chg24h });
                 });
 
-                if (instantRes.length > 0) document.getElementById('alertSound').play().catch(()=>{});
+                const instantHtml = burstHistory.map(r => {
+                    const secAgo = Math.floor((Date.now() - r.ts) / 1000);
+                    const timeStr = secAgo < 60 ? `${secAgo}s 前` : r.t;
+                    return `<tr class="${secAgo <= 5 ? 'new-row' : ''}">
+                        <td><span class="symbol">${r.s}</span><br><span class="time-tag">${timeStr}</span></td>
+                        <td><span class="burst-tag">${r.b.toFixed(1)}x 量</span></td>
+                        <td class="up" align="right">+${r.c.toFixed(2)}%</td>
+                    </tr>`;
+                }).join('');
 
-                const render = (arr, isI) => arr.sort((a,b) => b.b - a.b).slice(0, 10).map(r => `
-                    <tr class="${isI ? 'real-flash' : ''}">
-                        <td class="symbol">${r.s}</td>
-                        <td style="color:#02c076; font-weight:bold;">${r.b.toFixed(1)}x</td>
-                        <td class="up">+${r.c.toFixed(2)}%</td>
-                    </tr>`).join('');
-
-                document.getElementById('instantBody').innerHTML = render(instantRes, true);
-                document.getElementById('trendBody').innerHTML = render(trendRes, false);
-                document.getElementById('sidewaysBody').innerHTML = render(sidewaysRes, false);
+                document.getElementById('instantBody').innerHTML = instantHtml;
+                document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,10).map(r => `<tr><td class="symbol">${r.s}</td><td>${r.b.toFixed(1)}x</td><td class="up">+${r.c.toFixed(2)}%</td></tr>`).join('');
+                document.getElementById('sidewaysBody').innerHTML = sidewaysRes.slice(0,10).map(r => `<tr><td class="symbol">${r.s}</td><td>${r.b.toFixed(1)}x</td><td>${r.c.toFixed(2)}%</td></tr>`).join('');
             } catch (e) { console.error(e); }
         }
 
