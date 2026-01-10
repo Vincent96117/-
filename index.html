@@ -2,44 +2,40 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>量能監控 V31 - 右欄修復與 1% 噴發</title>
+    <title>量能監控 V32 - 真實 1% 噴發修正版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2b3139; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 10px; }
         .column { background: #181a20; padding: 15px; border-radius: 12px; border: 1px solid #2b3139; min-height: 450px; }
-        .col-title { color: #f0b90b; font-size: 16px; font-weight: bold; margin-bottom: 5px; }
-        .col-desc { color: #848e9c; font-size: 11px; margin-bottom: 15px; }
-        table { width: 100%; border-collapse: collapse; }
+        .col-title { color: #f0b90b; font-size: 16px; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         td { padding: 12px 5px; border-bottom: 1px solid #2b3139; font-size: 14px; }
         .symbol { color: #f0b90b; font-weight: bold; }
         .up { color: #02c076; font-weight: bold; }
         .down { color: #f84960; }
-        /* 1% 噴發紫色閃爍 */
-        .new-arrival { animation: pulse-purple 2s infinite; font-weight: bold; }
-        @keyframes pulse-purple { 0% { background-color: rgba(191, 0, 255, 0.1); } 50% { background-color: rgba(191, 0, 255, 0.5); } 100% { background-color: rgba(191, 0, 255, 0.1); } }
+        .real-flash { background: rgba(2, 192, 118, 0.3); animation: flash 1s; }
+        @keyframes flash { from { background: rgba(2, 192, 118, 0.5); } to { background: transparent; } }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0;">📊 專業監控 V31 (修復右欄 + 1% 噴發)</h2>
-        <div id="timer" style="color:#848e9c;">10s 刷新</div>
+        <h2 style="margin:0;">📊 專業監控 V32 (修正 1% 真實噴發)</h2>
+        <div id="timer" style="color:#848e9c;">5s 刷新</div>
     </div>
     
     <div class="grid">
         <div class="column">
-            <div class="col-title">⚡ 1分K 噴發 (1% 警報)</div>
-            <div class="col-desc">1分鐘內急拉 > 1% 帶量</div>
+            <div class="col-title">⚡ 瞬間 1% 爆發 (警報)</div>
+            <div style="font-size:10px; color:#848e9c;">僅顯示「當下」真正帶量拉升標的</div>
             <table><tbody id="instantBody"></tbody></table>
         </div>
         <div class="column">
-            <div class="col-title">🔥 4H 強勢續航</div>
-            <div class="col-desc">漲幅 > 5.5% 且站穩高位</div>
+            <div class="col-title">🔥 強勢波段維持</div>
             <table><tbody id="trendBody"></tbody></table>
         </div>
         <div class="column">
             <div class="col-title">📈 縮量盤整埋伏</div>
-            <div class="col-desc">低波幅，等待那一根 1%</div>
             <table><tbody id="sidewaysBody"></tbody></table>
         </div>
     </div>
@@ -47,8 +43,9 @@
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
 
     <script>
+        let priceMap = new Map(); // 記錄上一輪價格
         let prevInstant = new Set();
-        let timeLeft = 10;
+        let timeLeft = 5; // 縮短到 5 秒，為了抓即時波動
 
         async function run() {
             try {
@@ -57,53 +54,55 @@
                 let instantRes = [], trendRes = [], sidewaysRes = [];
                 let currentInstant = new Set();
 
-                const filtered = tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_'));
-
-                filtered.forEach(t => {
+                tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_')).forEach(t => {
                     const symbol = t.symbol.replace('USDT', '');
-                    const chg = parseFloat(t.priceChangePercent) || 0;
-                    const high = parseFloat(t.highPrice), low = parseFloat(t.lowPrice), cur = parseFloat(t.lastPrice);
-                    const vol24h = parseFloat(t.quoteVolume); 
-                    const realBurst = (vol24h / 550) / (vol24h / 1440); 
-                    const pos = (cur - low) / (high - low);
+                    const lastPrice = parseFloat(t.lastPrice);
+                    const chg24h = parseFloat(t.priceChangePercent);
+                    const vol24h = parseFloat(t.quoteVolume);
+                    const high = parseFloat(t.highPrice), low = parseFloat(t.lowPrice);
                     const swing = (high - low) / low;
+                    
+                    // --- 修正核心：計算「即時變動率」 ---
+                    let realTimeChange = 0;
+                    if (priceMap.has(symbol)) {
+                        const oldPrice = priceMap.get(symbol);
+                        realTimeChange = ((lastPrice - oldPrice) / oldPrice) * 100;
+                    }
+                    priceMap.set(symbol, lastPrice); // 更新價格紀錄
 
-                    // 1. 噴發欄 (1% 門檻)
-                    if (chg > 1.0 && chg < 5.5 && realBurst > 2.2 && vol24h > 5000000) {
-                        instantRes.push({ s: symbol, b: realBurst, c: chg });
+                    const realBurst = (vol24h / 1440) > 0 ? (vol24h / 400) / (vol24h / 1440) : 0;
+
+                    // 1. 噴發欄：必須是「即時漲幅」大於 0.8% 且「爆發力」強 (不再只看 24H)
+                    if (realTimeChange >= 0.8 && realBurst > 3.0 && vol24h > 5000000) {
+                        instantRes.push({ s: symbol, b: realBurst, c: realTimeChange, isNew: true });
                         currentInstant.add(symbol);
                     } 
-                    // 2. 趨勢欄 (強勢高位)
-                    else if (chg >= 5.5 && pos > 0.65 && vol24h > 8000000) {
-                        trendRes.push({ s: symbol, b: realBurst, c: chg });
+                    // 2. 趨勢欄：24H 強勢標的
+                    else if (chg24h >= 5.0 && vol24h > 10000000) {
+                        trendRes.push({ s: symbol, b: realBurst, c: chg24h });
                     }
-                    // 3. 盤整欄 (恢復原始穩定條件)
-                    else if (Math.abs(chg) < 3.0 && swing < 0.22 && vol24h > 2500000) {
-                        sidewaysRes.push({ s: symbol, b: realBurst, c: chg });
+                    // 3. 盤整欄
+                    else if (Math.abs(chg24h) < 2.5 && swing < 0.2 && vol24h > 3000000) {
+                        sidewaysRes.push({ s: symbol, b: realBurst, c: chg24h });
                     }
                 });
 
-                // 響鈴判斷
-                let hasNew = false;
-                currentInstant.forEach(s => { if (!prevInstant.has(s)) hasNew = true; });
-                if (hasNew) document.getElementById('alertSound').play().catch(()=>{});
+                if (instantRes.length > 0) document.getElementById('alertSound').play().catch(()=>{});
 
-                const fmt = (c) => `<span class="${c>=0?'up':'down'}">${c>=0?'+':''}${c.toFixed(2)}%</span>`;
                 const render = (arr, isI) => arr.sort((a,b) => b.b - a.b).slice(0, 10).map(r => `
-                    <tr class="${(isI && !prevInstant.has(r.s)) ? 'new-arrival' : ''}">
+                    <tr class="${isI ? 'real-flash' : ''}">
                         <td class="symbol">${r.s}</td>
                         <td style="color:#02c076; font-weight:bold;">${r.b.toFixed(1)}x</td>
-                        <td>${fmt(r.c)}</td>
+                        <td class="up">+${r.c.toFixed(2)}%</td>
                     </tr>`).join('');
 
                 document.getElementById('instantBody').innerHTML = render(instantRes, true);
                 document.getElementById('trendBody').innerHTML = render(trendRes, false);
                 document.getElementById('sidewaysBody').innerHTML = render(sidewaysRes, false);
-                prevInstant = currentInstant;
-            } catch (e) { console.error("API Error"); }
+            } catch (e) { console.error(e); }
         }
 
-        setInterval(() => { if (--timeLeft <= 0) { timeLeft=10; run(); } document.getElementById('timer').innerText = timeLeft + "s 刷新"; }, 1000);
+        setInterval(() => { if (--timeLeft <= 0) { timeLeft=5; run(); } document.getElementById('timer').innerText = timeLeft + "s 刷新"; }, 1000);
         run();
     </script>
 </body>
