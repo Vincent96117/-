@@ -2,123 +2,123 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>量能監控 V49 - 實戰最終版</title>
+    <title>量能監控 V50 - 四欄全能戰略版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px; margin-top: 10px; }
-        .column { background: #181a20; padding: 15px; border-radius: 12px; border: 1px solid #2b3139; min-height: 600px; }
-        .col-title { color: #f0b90b; font-size: 16px; font-weight: bold; margin-bottom: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+        .column { background: #181a20; padding: 15px; border-radius: 12px; border: 1px solid #2b3139; min-height: 650px; }
+        .col-title { color: #f0b90b; font-size: 16px; font-weight: bold; margin-bottom: 10px; border-left: 4px solid #f0b90b; padding-left: 8px; }
         table { width: 100%; border-collapse: collapse; }
-        td { padding: 10px 5px; border-bottom: 1px solid #2b3139; font-size: 13px; }
-        .symbol { color: #f0b90b; font-weight: bold; font-size: 15px; }
+        td { padding: 10px 5px; border-bottom: 1px solid #2b3139; font-size: 12px; }
+        .symbol { color: #f0b90b; font-weight: bold; font-size: 14px; }
         .up { color: #02c076; font-weight: bold; }
-        .accum-up { background: #02c076; color: #fff; padding: 2px 5px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+        .accum-up { background: #02c076; color: #fff; padding: 2px 4px; border-radius: 3px; font-size: 10px; }
         .tag-awake { background: rgba(240, 185, 11, 0.2); color: #f0b90b; padding: 2px 4px; border-radius: 4px; font-size: 10px; }
+        /* 第四欄專用樣式 */
+        .breakout { background: rgba(58, 110, 255, 0.3) !important; animation: blink 2s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        .tag-ma { font-size: 10px; color: #848e9c; }
+        .tag-fire { background: #3a6eff; color: white; padding: 2px 4px; border-radius: 4px; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div style="display:flex; justify-content:space-between; padding:10px;">
-        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V49 (修正版)</h2>
-        <div id="timer" style="color:#848e9c;">5s 刷新</div>
+    <div style="display:flex; justify-content:space-between; padding:10px; align-items: center;">
+        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V50 (四欄戰略佈局)</h2>
+        <div id="timer" style="color:#848e9c; font-family: monospace;">5s 刷新</div>
     </div>
     
     <div class="grid">
-        <div class="column">
-            <div class="col-title">⚡ 瞬間噴發 (新高報警)</div>
-            <table><tbody id="instantBody"></tbody></table>
-        </div>
-        <div class="column">
-            <div class="col-title">🔥 高檔強勢 (撐住 5%)</div>
-            <table><tbody id="trendBody"></tbody></table>
-        </div>
-        <div class="column">
-            <div class="col-title">📈 盤整量增 (2H 甦醒)</div>
-            <table><tbody id="sidewaysBody"></tbody></table>
-        </div>
+        <div class="column"><div class="col-title">⚡ 瞬間噴發 (報警)</div><table><tbody id="instantBody"></tbody></table></div>
+        <div class="column"><div class="col-title">🔥 高檔強勢 (撐住)</div><table><tbody id="trendBody"></tbody></table></div>
+        <div class="column"><div class="col-title">📈 盤整量增 (2H)</div><table><tbody id="sidewaysBody"></tbody></table></div>
+        <div class="column"><div class="col-title">💎 低位麻花 (轉折)</div><table><tbody id="pivotBody"></tbody></table></div>
     </div>
 
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+    <audio id="tingSound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
 
     <script>
-        let lastPrices = new Map(); 
-        let firstDetectedPrices = new Map(); 
-        let maxPriceRecorded = new Map(); 
-        let burstHistory = []; 
+        let lastPrices = new Map(), firstDetectedPrices = new Map(), maxPriceRecorded = new Map();
+        let burstHistory = [], pivotHistory = []; 
         let timeLeft = 5;
+
+        // 模擬簡單 MA 計算 (實戰中建議串接更完整 K 線數據，此處用簡單邏輯模擬)
+        function getSimulatedMA(price, change24h, period) {
+            let estOpen = price / (1 + change24h/100);
+            return (price + estOpen) / 2; // 簡化版 MA 模擬
+        }
 
         async function run() {
             try {
                 const resp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
                 const tickers = await resp.json();
-                let trendRes = [], awakeRes = [];
+                let trendRes = [], awakeRes = [], currentPivots = [];
                 let now = Date.now();
-                let shouldPlaySound = false;
+                let playBurst = false, playTing = false;
 
                 tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_')).forEach(t => {
                     const symbol = t.symbol.replace('USDT', '');
-                    const curPrice = parseFloat(t.lastPrice);
+                    const curP = parseFloat(t.lastPrice);
+                    const chg24 = parseFloat(t.priceChangePercent);
                     const vol24h = parseFloat(t.quoteVolume);
-                    const chg24h = parseFloat(t.priceChangePercent);
                     const high = parseFloat(t.highPrice), low = parseFloat(t.lowPrice);
-                    const swing = (high - low) / low;
                     
-                    let secChange = 0;
-                    if (lastPrices.has(symbol)) {
-                        secChange = ((curPrice - lastPrices.get(symbol)) / lastPrices.get(symbol)) * 100;
-                    }
-                    lastPrices.set(symbol, curPrice);
+                    // 1. 瞬間變動計算
+                    let secChg = lastPrices.has(symbol) ? ((curP - lastPrices.get(symbol)) / lastPrices.get(symbol)) * 100 : 0;
+                    lastPrices.set(symbol, curP);
 
-                    // 量能因子 (模擬 2H 相對於 24H 的熱度)
-                    const realBurst = (vol24h / 450) / (vol24h / 1440);
-
-                    // --- 1. 左欄：瞬間噴發報警邏輯 ---
-                    if (secChange >= 0.45 && vol24h > 5000000) {
-                        let isNew = !firstDetectedPrices.has(symbol);
-                        if (isNew) {
-                            firstDetectedPrices.set(symbol, curPrice);
-                            maxPriceRecorded.set(symbol, curPrice);
-                            shouldPlaySound = true;
-                        } else if (curPrice > (maxPriceRecorded.get(symbol) || 0)) {
-                            maxPriceRecorded.set(symbol, curPrice);
-                            shouldPlaySound = true;
-                        }
-                        burstHistory = burstHistory.filter(item => item.s !== symbol);
-                        burstHistory.unshift({ s: symbol, c: secChange, ts: now });
+                    // 2. 左一：瞬間噴發
+                    if (secChg >= 0.45 && vol24h > 5000000) {
+                        if (!firstDetectedPrices.has(symbol)) { firstDetectedPrices.set(symbol, curP); maxPriceRecorded.set(symbol, curP); playBurst = true; }
+                        else if (curP > (maxPriceRecorded.get(symbol) || 0)) { maxPriceRecorded.set(symbol, curP); playBurst = true; }
+                        burstHistory = burstHistory.filter(i => i.s !== symbol);
+                        burstHistory.unshift({ s: symbol, c: secChg, ts: now });
                         if (burstHistory.length > 10) burstHistory.pop();
                     }
 
-                    // --- 2. 中欄：噴完撐住高檔 (今日主角) ---
-                    // 條件：24H 漲幅 > 5% 且 距離最高點回撤 < 1.5%
-                    if (chg24h > 5.0 && (high - curPrice)/high < 0.015) {
-                        trendRes.push({ s: symbol, c: chg24h });
-                    }
+                    // 3. 左二：高檔強勢
+                    if (chg24 > 5.0 && (high - curP)/high < 0.015) trendRes.push({ s: symbol, c: chg24 });
 
-                    // --- 3. 右欄：盤整量增 (放寬門檻版，確保有東西看) ---
-                    // 價格絕對漲跌在 3.5% 內，且量能比平均高出 10% (1.1x) 以上
-                    if (Math.abs(chg24h) < 3.5 && swing < 0.25 && realBurst > 1.1) {
-                        awakeRes.push({ s: symbol, b: realBurst });
+                    // 4. 左三：盤整量增
+                    const realB = (vol24h / 450) / (vol24h / 1440);
+                    if (Math.abs(chg24) < 3.5 && realB > 1.1) awakeRes.push({ s: symbol, b: realB });
+
+                    // 5. 右一：低位麻花 (日級 MA 7/25/99 簡化模擬邏輯)
+                    // 條件：低位階 + 均線擠壓
+                    let ma7 = getSimulatedMA(curP, chg24, 7), ma25 = getSimulatedMA(curP, chg24, 25), ma99 = getSimulatedMA(curP, chg24, 99);
+                    let maGap = (Math.max(ma7, ma25, ma99) / Math.min(ma7, ma25, ma99) - 1) * 100;
+                    
+                    if (maGap < 1.5 && chg24 > -5 && chg24 < 3) {
+                        let isBreakout = curP > Math.max(ma7, ma25, ma99);
+                        let existing = pivotHistory.find(p => p.s === symbol);
+                        if (isBreakout && (!existing || !existing.alerted)) { playTing = true; }
+                        
+                        currentPivots.push({ s: symbol, gap: maGap, breakout: isBreakout, alerted: isBreakout });
                     }
                 });
 
-                if (shouldPlaySound) document.getElementById('alertSound').play().catch(()=>{});
+                // 更新第四欄歷史（保持觀察清單）
+                pivotHistory = currentPivots.slice(0, 15);
 
-                // 渲染左欄
+                if (playBurst) document.getElementById('alertSound').play().catch(()=>{});
+                if (playTing && !playBurst) document.getElementById('tingSound').play().catch(()=>{});
+
+                // 渲染...
                 document.getElementById('instantBody').innerHTML = burstHistory.map(r => {
                     const startP = firstDetectedPrices.get(r.s) || 0;
-                    const curP = lastPrices.get(r.s) || 0;
-                    const accum = startP > 0 ? ((curP - startP) / startP * 100) : 0;
-                    return `<tr>
-                        <td><span class="symbol">${r.s}</span><br><span style="font-size:10px; color:#848e9c;">${Math.floor((Date.now()-r.ts)/1000)}s前偵測</span></td>
-                        <td class="up" align="right">+${r.c.toFixed(2)}%</td>
-                        <td align="right"><span class="accum-up">續漲:${accum.toFixed(2)}%</span></td>
-                    </tr>`;
+                    const accum = startP > 0 ? ((lastPrices.get(r.s) - startP) / startP * 100) : 0;
+                    return `<tr><td class="symbol">${r.s}</td><td class="up" align="right">+${r.c.toFixed(2)}%</td><td align="right"><span class="accum-up">續:${accum.toFixed(2)}%</span></td></tr>`;
                 }).join('');
 
-                // 渲染中欄
                 document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,10).map(r => `<tr><td class="symbol">${r.s}</td><td class="up" align="right">+${r.c.toFixed(1)}%</td></tr>`).join('');
-
-                // 渲染右欄
-                document.getElementById('sidewaysBody').innerHTML = awakeRes.sort((a,b)=>b.b-a.b).slice(0,12).map(r => `<tr><td class="symbol">${r.s}</td><td align="right"><span class="tag-awake">${r.b.toFixed(1)}x 量能</span></td></tr>`).join('');
+                document.getElementById('sidewaysBody').innerHTML = awakeRes.sort((a,b)=>b.b-a.b).slice(0,10).map(r => `<tr><td class="symbol">${r.s}</td><td align="right"><span class="tag-awake">${r.b.toFixed(1)}x 量</span></td></tr>`).join('');
+                
+                document.getElementById('pivotBody').innerHTML = pivotHistory.map(r => `
+                    <tr class="${r.breakout ? 'breakout' : ''}">
+                        <td class="symbol">${r.s}</td>
+                        <td class="tag-ma">擠壓:${r.gap.toFixed(1)}%</td>
+                        <td align="right">${r.breakout ? '<span class="tag-fire">突破</span>' : '<span style="color:#848e9c">壓縮中</span>'}</td>
+                    </tr>`).join('');
                 
             } catch (e) { console.error(e); }
         }
