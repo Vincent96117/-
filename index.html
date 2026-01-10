@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>量能監控 V48 - 實戰最終版</title>
+    <title>量能監控 V49 - 實戰最終版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px; margin-top: 10px; }
@@ -18,13 +18,13 @@
 </head>
 <body>
     <div style="display:flex; justify-content:space-between; padding:10px;">
-        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V48 (左欄新高報警)</h2>
+        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V49 (修正版)</h2>
         <div id="timer" style="color:#848e9c;">5s 刷新</div>
     </div>
     
     <div class="grid">
         <div class="column">
-            <div class="col-title">⚡ 瞬間噴發 (新高才報警)</div>
+            <div class="col-title">⚡ 瞬間噴發 (新高報警)</div>
             <table><tbody id="instantBody"></tbody></table>
         </div>
         <div class="column">
@@ -42,7 +42,7 @@
     <script>
         let lastPrices = new Map(); 
         let firstDetectedPrices = new Map(); 
-        let maxPriceRecorded = new Map(); // 紀錄上榜後的最高價格
+        let maxPriceRecorded = new Map(); 
         let burstHistory = []; 
         let timeLeft = 5;
 
@@ -68,42 +68,41 @@
                     }
                     lastPrices.set(symbol, curPrice);
 
+                    // 量能因子 (模擬 2H 相對於 24H 的熱度)
                     const realBurst = (vol24h / 450) / (vol24h / 1440);
 
-                    // --- 左欄邏輯 ---
+                    // --- 1. 左欄：瞬間噴發報警邏輯 ---
                     if (secChange >= 0.45 && vol24h > 5000000) {
                         let isNew = !firstDetectedPrices.has(symbol);
-                        
-                        // 1. 新上榜叫一次
                         if (isNew) {
                             firstDetectedPrices.set(symbol, curPrice);
                             maxPriceRecorded.set(symbol, curPrice);
                             shouldPlaySound = true;
-                        } 
-                        // 2. 或是再次噴發且創出上榜後的新高點也叫
-                        else if (curPrice > maxPriceRecorded.get(symbol)) {
+                        } else if (curPrice > (maxPriceRecorded.get(symbol) || 0)) {
                             maxPriceRecorded.set(symbol, curPrice);
                             shouldPlaySound = true;
                         }
-
-                        // 更新位置 (把正在噴的擠到最上面)
                         burstHistory = burstHistory.filter(item => item.s !== symbol);
                         burstHistory.unshift({ s: symbol, c: secChange, ts: now });
                         if (burstHistory.length > 10) burstHistory.pop();
                     }
 
-                    // --- 中欄 (5%) 與 右欄 (2H量增) ---
+                    // --- 2. 中欄：噴完撐住高檔 (今日主角) ---
+                    // 條件：24H 漲幅 > 5% 且 距離最高點回撤 < 1.5%
                     if (chg24h > 5.0 && (high - curPrice)/high < 0.015) {
                         trendRes.push({ s: symbol, c: chg24h });
                     }
-                    if (Math.abs(chg24h) < 2.5 && swing < 0.18 && realBurst > 1.3 && realBurst < 2.8) {
+
+                    // --- 3. 右欄：盤整量增 (放寬門檻版，確保有東西看) ---
+                    // 價格絕對漲跌在 3.5% 內，且量能比平均高出 10% (1.1x) 以上
+                    if (Math.abs(chg24h) < 3.5 && swing < 0.25 && realBurst > 1.1) {
                         awakeRes.push({ s: symbol, b: realBurst });
                     }
                 });
 
                 if (shouldPlaySound) document.getElementById('alertSound').play().catch(()=>{});
 
-                // 渲染渲染...
+                // 渲染左欄
                 document.getElementById('instantBody').innerHTML = burstHistory.map(r => {
                     const startP = firstDetectedPrices.get(r.s) || 0;
                     const curP = lastPrices.get(r.s) || 0;
@@ -115,8 +114,11 @@
                     </tr>`;
                 }).join('');
 
+                // 渲染中欄
                 document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,10).map(r => `<tr><td class="symbol">${r.s}</td><td class="up" align="right">+${r.c.toFixed(1)}%</td></tr>`).join('');
-                document.getElementById('sidewaysBody').innerHTML = awakeRes.sort((a,b)=>b.b-a.b).slice(0,10).map(r => `<tr><td class="symbol">${r.s}</td><td align="right">${r.b.toFixed(1)}x 量</td></tr>`).join('');
+
+                // 渲染右欄
+                document.getElementById('sidewaysBody').innerHTML = awakeRes.sort((a,b)=>b.b-a.b).slice(0,12).map(r => `<tr><td class="symbol">${r.s}</td><td align="right"><span class="tag-awake">${r.b.toFixed(1)}x 量能</span></td></tr>`).join('');
                 
             } catch (e) { console.error(e); }
         }
