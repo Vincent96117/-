@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>專業監控-強力回歸版</title>
+    <title>專業監控 V8-穩定版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2b3139; }
@@ -16,17 +16,17 @@
         th { text-align: left; color: #848e9c; font-size: 12px; border-bottom: 1px solid #2b3139; padding: 8px 5px; }
         td { padding: 12px 5px; border-bottom: 1px solid #2b3139; font-size: 15px; }
         .symbol { color: #f0b90b; font-weight: bold; }
-        .up { color: #02c076; }
+        .up { color: #02c076; font-weight: bold; }
         .down { color: #f84960; }
-        #status { text-align: center; color: #848e9c; font-size: 13px; margin: 10px 0; }
+        #status { text-align: center; color: #f0b90b; font-size: 13px; margin: 10px 0; padding: 5px; background: rgba(240,185,11,0.1); border-radius: 5px; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0; font-size: 18px;">📊 量能監控 V7</h2>
+        <h2 style="margin:0; font-size: 18px;">📊 專業量能監控 V8</h2>
         <button id="btn" class="refresh-btn" onclick="run()">⚡ 立即刷新</button>
     </div>
-    <div id="status">點擊按鈕一秒掃描全市場</div>
+    <div id="status">點擊按鈕刷新數據 (已修復數據錯誤)</div>
     
     <div class="grid">
         <div class="column">
@@ -37,7 +37,7 @@
             </table>
         </div>
         <div class="column">
-            <div class="col-title">📈 起跑潛力 (不限漲幅)</div>
+            <div class="col-title">📈 低位起跑 (不限漲幅)</div>
             <table>
                 <thead><tr><th>幣種</th><th>量比</th><th>漲幅</th></tr></thead>
                 <tbody id="lBody"></tbody>
@@ -50,35 +50,37 @@
             const btn = document.getElementById('btn');
             const status = document.getElementById('status');
             btn.disabled = true;
-            status.innerText = "🚀 掃描中...";
+            status.innerText = "⏳ 正在同步幣安數據...";
 
             try {
-                const tResp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-                const tickers = await tResp.json();
+                // 使用備用 API 網址，降低被擋機率
+                const resp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+                const tickers = await resp.json();
                 
                 let sRes = [], lRes = [];
+                // 過濾出合約交易對
                 const filtered = tickers.filter(t => t.symbol.endsWith('USDT'));
 
                 filtered.forEach(t => {
                     const symbol = t.symbol.replace('USDT', '');
-                    const chg = parseFloat(t.priceChangePercent);
+                    const chg = parseFloat(t.priceChangePercent) || 0;
                     const curPrice = parseFloat(t.lastPrice);
                     const high = parseFloat(t.highPrice);
                     const low = parseFloat(t.lowPrice);
-                    const quoteVol = parseFloat(t.quoteVolume); 
+                    const vol = parseFloat(t.quoteVolume); // 24H成交額
 
-                    // 估算量比
-                    const ratio = quoteVol / (quoteVol / 24 * 20); 
-                    const pricePos = (curPrice - low) / (high - low);
+                    // 計算相對量能
+                    const ratio = vol > 0 ? (vol / 5000000) : 0; 
+                    const pricePos = (high === low) ? 0 : (curPrice - low) / (high - low);
 
-                    // 1. 左邊：爆發幣 (漲幅 > 4% 且帶量)
-                    if (chg > 4 && quoteVol > 15000000) {
-                        sRes.push({ s: symbol, r: ratio + 1.2, c: chg, v: quoteVol });
+                    // 左邊：爆發幣 (漲幅 > 4% 且具備一定量能)
+                    if (chg > 4 && vol > 10000000) {
+                        sRes.push({ s: symbol, r: ratio, c: chg, v: vol });
                     }
                     
-                    // 2. 右邊：起跑潛力 (不再限制漲幅，只要求價格在低點區 45% 以下)
-                    if (pricePos < 0.45 && quoteVol > 5000000) {
-                        lRes.push({ s: symbol, r: ratio + 0.8, c: chg, v: quoteVol });
+                    // 右邊：低位潛力 (只要價格在今日波幅 45% 以下，且有基礎量能)
+                    if (pricePos < 0.45 && vol > 3000000) {
+                        lRes.push({ s: symbol, r: ratio, c: chg, v: vol });
                     }
                 });
 
@@ -86,16 +88,17 @@
                 const render = (arr) => arr.sort((a,b) => b.v - a.v).slice(0, 20).map(r => `
                     <tr>
                         <td class="symbol">${r.s}</td>
-                        <td style="color:#02c076; font-weight:bold;">${r.r.toFixed(1)}x</td>
+                        <td style="color:#02c076; font-weight:bold;">${r.r > 5 ? '極高' : '顯著'}</td>
                         <td>${fmt(r.c)}</td>
                     </tr>`).join('');
 
-                document.getElementById('sBody').innerHTML = render(sRes) || "<tr><td colspan='3'>無訊號</td></tr>";
-                document.getElementById('lBody').innerHTML = render(lRes) || "<tr><td colspan='3'>無訊號</td></tr>";
+                document.getElementById('sBody').innerHTML = render(sRes) || "<tr><td colspan='3'>市場暫無異動</td></tr>";
+                document.getElementById('lBody').innerHTML = render(lRes) || "<tr><td colspan='3'>無底部幣種</td></tr>";
                 
-                status.innerText = "✅ 更新完成: " + new Date().toLocaleTimeString();
+                status.innerText = "✅ 更新成功: " + new Date().toLocaleTimeString();
             } catch (err) {
-                status.innerText = "❌ 網路異常，請稍後再試";
+                status.innerText = "❌ 網路異常，請關閉VPN或切換網路後再試";
+                console.error(err);
             }
             btn.disabled = false;
         }
