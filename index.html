@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>量能監控 V27 - 三欄互斥版</title>
+    <title>量能監控 V28 - 突發強亮版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2b3139; }
@@ -19,34 +19,43 @@
         .up { color: #02c076; font-weight: bold; }
         .down { color: #f84960; }
         #status { text-align: center; color: #f0b90b; font-size: 12px; margin: 10px 0; }
-        .new-entry { animation: highlight 2s; }
-        @keyframes highlight { from { background: rgba(240, 185, 11, 0.3); } to { background: transparent; } }
+        
+        /* 💡 新幣跳入左邊欄位的超明顯樣式 */
+        .new-arrival {
+            animation: pulse-purple 3s infinite; 
+            font-weight: bold;
+        }
+        @keyframes pulse-purple {
+            0% { background-color: rgba(191, 0, 255, 0.1); }
+            50% { background-color: rgba(191, 0, 255, 0.6); color: white; }
+            100% { background-color: rgba(191, 0, 255, 0.1); }
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V27 (互斥警報版)</h2>
+        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V28 (新幣強亮警報)</h2>
         <div>
-            <span id="timer" style="margin-right:10px; font-size:12px; color:#848e9c;">10s 後刷新</span>
-            <button id="btn" class="refresh-btn" onclick="run()">⚡ 立即掃描</button>
+            <span id="timer" style="margin-right:10px; font-size:12px; color:#848e9c;">10s 刷新</span>
+            <button id="btn" class="refresh-btn" onclick="run()">⚡ 核心掃描</button>
         </div>
     </div>
-    <div id="status">標的互斥邏輯：瞬時 > 趨勢 > 盤整</div>
+    <div id="status">當新幣進入左一「瞬時突發」時會響鈴並以紫色閃爍</div>
     
     <div class="grid">
         <div class="column">
-            <div class="col-title">⚡ 0.5H 瞬時突發</div>
-            <div class="col-desc">最優先顯示：剛起跳之黑馬</div>
+            <div class="col-title">⚡ 0.5H 瞬時突發 (警報區)</div>
+            <div class="col-desc">剛起跳、量能炸裂之黑馬</div>
             <table><thead><tr><th>幣種</th><th>爆發力</th><th>漲幅</th></tr></thead><tbody id="instantBody"></tbody></table>
         </div>
         <div class="column">
             <div class="col-title">🔥 4H 強勢追蹤</div>
-            <div class="col-desc">次優先：噴發後高位續航</div>
+            <div class="col-desc">趨勢穩定、高位支撐</div>
             <table><thead><tr><th>幣種</th><th>爆發力</th><th>漲幅</th></tr></thead><tbody id="trendBody"></tbody></table>
         </div>
         <div class="column">
-            <div class="col-title">📈 有量盤整</div>
-            <div class="col-desc">末優先：尚未發動之埋伏</div>
+            <div class="col-title">📈 有量盤整埋伏</div>
+            <div class="col-desc">洗盤中、等待變盤突破</div>
             <table><thead><tr><th>幣種</th><th>爆發力</th><th>漲幅</th></tr></thead><tbody id="sidewaysBody"></tbody></table>
         </div>
     </div>
@@ -54,7 +63,7 @@
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
 
     <script>
-        let lastSymbols = new Set();
+        let previousInstantSymbols = new Set(); // 記錄上一輪左一的名單
         let timeLeft = 10;
 
         async function run() {
@@ -68,11 +77,10 @@
                 const tickers = await tResp.json();
                 
                 let instantRes = [], trendRes = [], sidewaysRes = [];
-                let currentSymbolsInInstant = new Set();
+                let currentInstantSymbols = new Set();
 
                 const filtered = tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_'));
 
-                // 邏輯互斥分配
                 filtered.forEach(t => {
                     const symbol = t.symbol.replace('USDT', '');
                     const chg = parseFloat(t.priceChangePercent) || 0;
@@ -86,55 +94,63 @@
                     const pos = (cur - low) / (high - low);
                     const swing = (high - low) / low;
 
-                    // 1. 判定是否符合瞬時突發 (最嚴格)
+                    // 1. 優先分配：瞬時突發 (0.5H 內動能最強)
                     if (realBurst > 2.2 && chg > 1.5 && chg < 6.0 && vol24h > 5000000) {
                         instantRes.push({ s: symbol, b: realBurst, c: chg });
-                        currentSymbolsInInstant.add(symbol);
+                        currentInstantSymbols.add(symbol);
                     } 
-                    // 2. 判定是否符合強勢趨勢 (排除掉已經在瞬時欄的)
+                    // 2. 次要分配：強勢趨勢 (已成形之強勢)
                     else if (realBurst > 1.8 && chg >= 6.0 && pos > 0.60 && vol24h > 8000000) {
                         trendRes.push({ s: symbol, b: realBurst, c: chg });
                     }
-                    // 3. 判定是否符合盤整 (排除掉以上兩者)
+                    // 3. 末位分配：有量盤整
                     else if (realBurst > 1.25 && swing < 0.18 && Math.abs(chg) < 3.0 && vol24h > 3000000) {
                         sidewaysRes.push({ s: symbol, b: realBurst, c: chg });
                     }
                 });
 
-                // 檢查是否有新黑馬進入「瞬時突發」
-                let hasNew = false;
-                currentSymbolsInInstant.forEach(s => {
-                    if (!lastSymbols.has(s)) {
-                        hasNew = true;
-                        console.log("新黑馬出現: " + s);
+                // 💡 判斷是否有「新面孔」進入左一欄位
+                let newlyArrived = [];
+                currentInstantSymbols.forEach(s => {
+                    if (!previousInstantSymbols.has(s)) {
+                        newlyArrived.push(s);
                     }
                 });
-                if (hasNew) document.getElementById('alertSound').play().catch(()=>{});
-                lastSymbols = currentSymbolsInInstant;
+
+                // 如果有新幣進入，響鈴警報
+                if (newlyArrived.length > 0) {
+                    document.getElementById('alertSound').play().catch(()=>{});
+                }
 
                 const fmt = (c) => `<span class="${c>=0?'up':'down'}">${c>=0?'+':''}${c.toFixed(2)}%</span>`;
-                const render = (arr) => arr.sort((a,b) => b.b - a.b).slice(0, 12).map(r => `
-                    <tr class="${!lastSymbols.has(r.s)?'new-entry':''}">
+                
+                // 渲染左一：加上「新進」紫色標示
+                document.getElementById('instantBody').innerHTML = instantRes.sort((a,b) => b.b - a.b).slice(0, 12).map(r => `
+                    <tr class="${newlyArrived.includes(r.s) ? 'new-arrival' : ''}">
                         <td class="symbol">${r.s}</td>
                         <td style="color:#02c076;font-weight:bold;">${r.b.toFixed(1)}x</td>
                         <td>${fmt(r.c)}</td>
                     </tr>`).join('');
 
-                document.getElementById('instantBody').innerHTML = render(instantRes);
-                document.getElementById('trendBody').innerHTML = render(trendRes);
-                document.getElementById('sidewaysBody').innerHTML = render(sidewaysRes);
+                // 渲染其他兩欄
+                document.getElementById('trendBody').innerHTML = trendRes.sort((a,b) => b.b - a.b).slice(0, 12).map(r => `
+                    <tr><td class="symbol">${r.s}</td><td style="color:#02c076;font-weight:bold;">${r.b.toFixed(1)}x</td><td>${fmt(r.c)}</td></tr>`).join('');
+
+                document.getElementById('sidewaysBody').innerHTML = sidewaysRes.sort((a,b) => b.b - a.b).slice(0, 12).map(r => `
+                    <tr><td class="symbol">${r.s}</td><td style="color:#02c076;font-weight:bold;">${r.b.toFixed(1)}x</td><td>${fmt(r.c)}</td></tr>`).join('');
                 
-                status.innerText = "✅ 自動監控中: " + new Date().toLocaleTimeString();
+                // 更新上一輪名單存檔
+                previousInstantSymbols = currentInstantSymbols;
+                status.innerText = "✅ 自動掃描中... " + new Date().toLocaleTimeString();
             } catch (err) {
-                status.innerText = "❌ 請求失敗";
+                status.innerText = "❌ 網路連線異常";
             }
             btn.disabled = false;
         }
 
-        // 定時器邏輯
         setInterval(() => {
             timeLeft--;
-            document.getElementById('timer').innerText = timeLeft + "s 後刷新";
+            document.getElementById('timer').innerText = timeLeft + "s 刷新";
             if (timeLeft <= 0) run();
         }, 1000);
 
