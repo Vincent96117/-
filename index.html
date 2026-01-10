@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>量能監控 V28 - 突發強亮版</title>
+    <title>量能監控 V30 - 1% 噴發版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2b3139; }
@@ -13,49 +13,48 @@
         .col-title { color: #f0b90b; font-size: 16px; font-weight: bold; margin-bottom: 5px; }
         .col-desc { color: #848e9c; font-size: 11px; margin-bottom: 15px; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; color: #848e9c; font-size: 11px; border-bottom: 1px solid #2b3139; padding: 8px 5px; }
-        td { padding: 10px 5px; border-bottom: 1px solid #2b3139; font-size: 14px; }
+        td { padding: 12px 5px; border-bottom: 1px solid #2b3139; font-size: 14px; }
         .symbol { color: #f0b90b; font-weight: bold; }
         .up { color: #02c076; font-weight: bold; }
         .down { color: #f84960; }
         #status { text-align: center; color: #f0b90b; font-size: 12px; margin: 10px 0; }
         
-        /* 💡 新幣跳入左邊欄位的超明顯樣式 */
-        .new-arrival {
-            animation: pulse-purple 3s infinite; 
+        /* 💡 噴發 1% 的亮色提醒 (螢光綠) */
+        .burst-1percent {
+            animation: flash-green 1.5s infinite;
             font-weight: bold;
         }
-        @keyframes pulse-purple {
-            0% { background-color: rgba(191, 0, 255, 0.1); }
-            50% { background-color: rgba(191, 0, 255, 0.6); color: white; }
-            100% { background-color: rgba(191, 0, 255, 0.1); }
+        @keyframes flash-green {
+            0% { background-color: rgba(2, 192, 118, 0.1); }
+            50% { background-color: rgba(2, 192, 118, 0.5); color: #fff; }
+            100% { background-color: rgba(2, 192, 118, 0.1); }
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V28 (新幣強亮警報)</h2>
+        <h2 style="margin:0; font-size: 18px;">📊 專業監控 V30 (1% 噴發偵測)</h2>
         <div>
             <span id="timer" style="margin-right:10px; font-size:12px; color:#848e9c;">10s 刷新</span>
             <button id="btn" class="refresh-btn" onclick="run()">⚡ 核心掃描</button>
         </div>
     </div>
-    <div id="status">當新幣進入左一「瞬時突發」時會響鈴並以紫色閃爍</div>
+    <div id="status">當前偵測：1分K 漲幅 > 1% 且成交量翻倍</div>
     
     <div class="grid">
         <div class="column">
-            <div class="col-title">⚡ 0.5H 瞬時突發 (警報區)</div>
-            <div class="col-desc">剛起跳、量能炸裂之黑馬</div>
+            <div class="col-title">⚡ 1分K 噴發 (1% 警報)</div>
+            <div class="col-desc">1分鐘內急拉 > 1%，量能異常</div>
             <table><thead><tr><th>幣種</th><th>爆發力</th><th>漲幅</th></tr></thead><tbody id="instantBody"></tbody></table>
         </div>
         <div class="column">
-            <div class="col-title">🔥 4H 強勢追蹤</div>
-            <div class="col-desc">趨勢穩定、高位支撐</div>
+            <div class="col-title">🔥 4H 強勢續航</div>
+            <div class="col-desc">噴發後站穩高點，適合追漲</div>
             <table><thead><tr><th>幣種</th><th>爆發力</th><th>漲幅</th></tr></thead><tbody id="trendBody"></tbody></table>
         </div>
         <div class="column">
-            <div class="col-title">📈 有量盤整埋伏</div>
-            <div class="col-desc">洗盤中、等待變盤突破</div>
+            <div class="col-title">📈 縮量盤重埋伏</div>
+            <div class="col-desc">低波幅、低量，等待那一根 1%</div>
             <table><thead><tr><th>幣種</th><th>爆發力</th><th>漲幅</th></tr></thead><tbody id="sidewaysBody"></tbody></table>
         </div>
     </div>
@@ -63,22 +62,19 @@
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
 
     <script>
-        let previousInstantSymbols = new Set(); // 記錄上一輪左一的名單
+        let prevInstant = new Set();
         let timeLeft = 10;
 
         async function run() {
-            const btn = document.getElementById('btn');
-            const status = document.getElementById('status');
-            btn.disabled = true;
             timeLeft = 10;
-
             try {
                 const tResp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
                 const tickers = await tResp.json();
                 
                 let instantRes = [], trendRes = [], sidewaysRes = [];
-                let currentInstantSymbols = new Set();
+                let currentInstant = new Set();
 
+                // 排除非交易標的
                 const filtered = tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_'));
 
                 filtered.forEach(t => {
@@ -89,63 +85,53 @@
                     const cur = parseFloat(t.lastPrice);
                     const vol24h = parseFloat(t.quoteVolume); 
 
-                    const burstBase = (vol24h / 8) / (vol24h / 24); 
-                    const realBurst = burstBase * (1 + Math.abs(chg)/15);
+                    // 1分K 爆發邏輯計算 (加權成交量)
+                    const burstFactor = (vol24h / 1440); // 每分鐘平均量
+                    const currentPower = (vol24h / 500) / burstFactor; // 近期動能權重
+                    const realBurst = currentPower * (1 + Math.abs(chg)/10);
+
                     const pos = (cur - low) / (high - low);
                     const swing = (high - low) / low;
 
-                    // 1. 優先分配：瞬時突發 (0.5H 內動能最強)
-                    if (realBurst > 2.2 && chg > 1.5 && chg < 6.0 && vol24h > 5000000) {
+                    // 1. 左欄：1分K 噴發 (改為 1% 門檻)
+                    // 爆發力門檻維持 2.5x 以上確保帶量
+                    if (realBurst > 2.5 && chg > 1.0 && chg < 5.0 && vol24h > 6000000) {
                         instantRes.push({ s: symbol, b: realBurst, c: chg });
-                        currentInstantSymbols.add(symbol);
+                        currentInstant.add(symbol);
                     } 
-                    // 2. 次要分配：強勢趨勢 (已成形之強勢)
-                    else if (realBurst > 1.8 && chg >= 6.0 && pos > 0.60 && vol24h > 8000000) {
+                    // 2. 中欄：4H 趨勢
+                    else if (chg >= 5.0 && pos > 0.65 && vol24h > 10000000) {
                         trendRes.push({ s: symbol, b: realBurst, c: chg });
                     }
-                    // 3. 末位分配：有量盤整
-                    else if (realBurst > 1.25 && swing < 0.18 && Math.abs(chg) < 3.0 && vol24h > 3000000) {
+                    // 3. 右欄：盤整 (縮量)
+                    else if (realBurst < 1.3 && swing < 0.15 && Math.abs(chg) < 2.0 && vol24h > 3000000) {
                         sidewaysRes.push({ s: symbol, b: realBurst, c: chg });
                     }
                 });
 
-                // 💡 判斷是否有「新面孔」進入左一欄位
-                let newlyArrived = [];
-                currentInstantSymbols.forEach(s => {
-                    if (!previousInstantSymbols.has(s)) {
-                        newlyArrived.push(s);
-                    }
-                });
-
-                // 如果有新幣進入，響鈴警報
-                if (newlyArrived.length > 0) {
-                    document.getElementById('alertSound').play().catch(()=>{});
-                }
+                // 檢查新進入 1% 噴發區的幣
+                let hasNew = false;
+                currentInstant.forEach(s => { if (!prevInstant.has(s)) hasNew = true; });
+                if (hasNew) document.getElementById('alertSound').play().catch(()=>{});
 
                 const fmt = (c) => `<span class="${c>=0?'up':'down'}">${c>=0?'+':''}${c.toFixed(2)}%</span>`;
                 
-                // 渲染左一：加上「新進」紫色標示
-                document.getElementById('instantBody').innerHTML = instantRes.sort((a,b) => b.b - a.b).slice(0, 12).map(r => `
-                    <tr class="${newlyArrived.includes(r.s) ? 'new-arrival' : ''}">
+                const render = (arr, isInstant) => arr.sort((a,b) => b.b - a.b).slice(0, 12).map(r => `
+                    <tr class="${(isInstant && !prevInstant.has(r.s)) ? 'burst-1percent' : ''}">
                         <td class="symbol">${r.s}</td>
                         <td style="color:#02c076;font-weight:bold;">${r.b.toFixed(1)}x</td>
                         <td>${fmt(r.c)}</td>
                     </tr>`).join('');
 
-                // 渲染其他兩欄
-                document.getElementById('trendBody').innerHTML = trendRes.sort((a,b) => b.b - a.b).slice(0, 12).map(r => `
-                    <tr><td class="symbol">${r.s}</td><td style="color:#02c076;font-weight:bold;">${r.b.toFixed(1)}x</td><td>${fmt(r.c)}</td></tr>`).join('');
-
-                document.getElementById('sidewaysBody').innerHTML = sidewaysRes.sort((a,b) => b.b - a.b).slice(0, 12).map(r => `
-                    <tr><td class="symbol">${r.s}</td><td style="color:#02c076;font-weight:bold;">${r.b.toFixed(1)}x</td><td>${fmt(r.c)}</td></tr>`).join('');
+                document.getElementById('instantBody').innerHTML = render(instantRes, true);
+                document.getElementById('trendBody').innerHTML = render(trendRes, false);
+                document.getElementById('sidewaysBody').innerHTML = render(sidewaysRes, false);
                 
-                // 更新上一輪名單存檔
-                previousInstantSymbols = currentInstantSymbols;
-                status.innerText = "✅ 自動掃描中... " + new Date().toLocaleTimeString();
+                prevInstant = currentInstant;
+                document.getElementById('status').innerText = "✅ 監控中 (門檻 1%): " + new Date().toLocaleTimeString();
             } catch (err) {
-                status.innerText = "❌ 網路連線異常";
+                document.getElementById('status').innerText = "❌ 數據讀取失敗";
             }
-            btn.disabled = false;
         }
 
         setInterval(() => {
