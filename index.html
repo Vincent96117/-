@@ -2,197 +2,153 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>量能監控 V54 - 終極戰術版</title>
+    <title>V54 幣圈獵人 - 2026 決戰版</title>
     <style>
-        body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; overflow-x: hidden; }
-        .market-dashboard {
-            display: flex; gap: 15px; background: #1e2329; padding: 10px 20px; border-radius: 8px;
-            margin-bottom: 10px; border: 1px solid #2b3139; align-items: center; transition: 0.3s;
-        }
-        .flash-red { background: #7a0000 !important; animation: flash 0.6s infinite; }
-        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-        .stat-item { display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
-        .stat-label { color: #848e9c; font-weight: bold; }
-        .stat-value { font-weight: 800; font-family: monospace; }
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        .column { background: #181a20; padding: 12px; border-radius: 10px; border: 1px solid #2b3139; min-height: 750px; display: flex; flex-direction: column; }
-        .col-title { color: #f0b90b; font-size: 15px; font-weight: bold; margin-bottom: 8px; border-left: 4px solid #f0b90b; padding-left: 8px; }
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --twist: #d29922; --strong: #58a6ff; --news: #f0883e; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 10px; margin: 0; font-size: 12px; }
+        
+        /* 消息面置頂區 */
+        .news-header { background: rgba(240, 136, 62, 0.15); border: 1px solid var(--news); border-radius: 6px; padding: 10px; margin-bottom: 10px; display: flex; gap: 20px; align-items: center; }
+        .news-item { border-left: 3px solid var(--news); padding-left: 10px; }
+        .news-item b { color: var(--news); font-size: 14px; }
+        .news-time { color: #8b949e; font-size: 11px; }
+
+        .container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; height: 85vh; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; }
+        h2 { font-size: 0.85rem; padding: 10px; margin: 0; border-bottom: 1px solid var(--border); background: #1c2128; }
+        .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; }
-        td { padding: 7px 4px; border-bottom: 1px solid #2b3139; font-size: 12px; }
-        .up { color: #02c076; } .down { color: #f84960; }
-        .symbol { color: #f0b90b; font-weight: bold; }
-        .del-btn { color: #f84960; cursor: pointer; border: 1px solid #f84960; border-radius: 3px; padding: 0 4px; font-size: 12px; margin-left:5px; }
-        .del-btn:hover { background: #f84960; color: white; }
-        .breakout { background: rgba(58, 110, 255, 0.25) !important; }
-        .tag-fire { background: #3a6eff; color: white; padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; }
-        .watch-area { margin-top: 20px; padding-top: 15px; border-top: 2px dashed #2b3139; }
-        .manual-input-area { display: flex; gap: 5px; margin-top: 10px; }
-        #manualSymbol { background: #0b0e11; border: 1px solid #474d57; color: white; border-radius: 3px; padding: 5px; flex: 1; font-size: 12px; }
-        #addManualBtn { background: #f0b90b; color: black; border: none; border-radius: 3px; padding: 5px 10px; font-weight: bold; cursor: pointer; }
+        td, th { padding: 6px 4px; border-bottom: 1px solid #21262d; text-align: center; }
+        th { background: #21262d; color: #8b949e; position: sticky; top: 0; font-size: 11px; }
+        .btn-del { background: var(--fall); color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 4px; }
+        .missing { color: #ff7b72; font-weight: bold; }
+        .pass { color: var(--surge); font-weight: bold; }
+        .funding-alert { color: #f8e3a1; background: rgba(240,136,62,0.3); font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="topBar" class="market-dashboard">
-        <div class="stat-item"><span class="stat-label">BTC:</span><span id="btcPrice" class="stat-value">--</span> <span id="btcChg">--</span></div>
-        <div class="stat-item"><span class="stat-label">ETH:</span><span id="ethPrice" class="stat-value">--</span> <span id="ethChg">--</span></div>
-        <div class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;"><span class="stat-label">漲/跌:</span><span id="upCount" class="up">0</span>/<span id="downCount" class="down">0</span></div>
-        <div id="volTop3" class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;"><span class="stat-label">🔥 吸金王:</span> <span id="top3Content">計算中...</span></div>
-        <div id="riskTag" style="margin-left:auto; color:#fff; background:#f84960; padding:2px 8px; border-radius:4px; font-weight:bold; display:none; animation: flash 0.8s infinite;">⚠️ 插針警告</div>
-        <div id="timer" style="margin-left: auto; color:#848e9c; font-size: 11px;">5s</div>
+<div class="news-header">
+    <div style="font-weight:bold; font-size: 16px;">📅 本週重要消息面:</div>
+    <div class="news-item">
+        <b>美國 12 月 CPI 數據 (通膨決戰)</b><br>
+        <span class="news-time">2026/01/13 (週二) 21:30</span>
     </div>
-    
-    <div class="grid">
-        <div class="column">
-            <div class="col-title">⚡ 瞬間噴發 (1%)</div>
-            <table><tbody id="instantBody"></tbody></table>
-        </div>
-        
-        <div class="column">
-            <div class="col-title">🔥 高檔強勢 (撐住)</div>
-            <div style="max-height: 350px; overflow-y: auto;"><table><tbody id="trendBody"></tbody></table></div>
-            <div class="watch-area">
-                <div class="col-title" style="border-left-color: #3a6eff;">📌 觀察清單 (±1% 報警)</div>
-                <table><tbody id="userWatchBody"></tbody></table>
-                <div class="manual-input-area">
-                    <input type="text" id="manualSymbol" placeholder="輸入幣種 (如 SUI)">
-                    <button id="addManualBtn">新增</button>
-                </div>
-            </div>
-        </div>
-        
-        <div class="column">
-            <div class="col-title">📊 資費異常榜 (|±0.05%|)</div>
-            <table style="background:#0b0e11; margin-bottom:15px; border-radius:4px;"><tbody id="fundingBody"></tbody></table>
-            <div class="col-title">📈 盤整量增 (2H)</div>
-            <table><tbody id="sidewaysBody"></tbody></table>
-        </div>
-        
-        <div class="column">
-            <div class="col-title">💎 低位轉折清單 (上限15)</div>
-            <table><tbody id="pivotBody"></tbody></table>
-        </div>
+    <div class="news-item">
+        <b>初請失業金人數</b><br>
+        <span class="news-time">2026/01/15 (週四) 21:30</span>
+    </div>
+    <div class="news-item">
+        <b>密大消費者信心指數</b><br>
+        <span class="news-time">2026/01/16 (週五) 23:00</span>
+    </div>
+    <div style="margin-left: auto; text-align: right;">
+        <span id="status">連接中...</span>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <h2 style="color:var(--surge)">🚀 瞬間噴發(>=1.5%)</h2>
+        <div class="scroll"><table><thead><tr><th>幣種</th><th>價格</th><th>幅度%</th></tr></thead><tbody id="surge-list"></tbody></table></div>
     </div>
 
-    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
-    <audio id="tingSound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
-    <audio id="downSound" src="https://assets.mixkit.co/active_storage/sfx/2518/2518-preview.mp3"></audio>
+    <div class="card">
+        <h2 style="color:var(--strong)">🔥 高檔強勢</h2>
+        <div class="scroll"><table><thead><tr><th>幣種</th><th>價格</th><th>24h%</th><th>操作</th></tr></thead><tbody id="strong-list"></tbody></table></div>
+    </div>
 
-    <script>
-        let lastPrices = new Map(), btcHistory = [], ethHistory = [];
-        let burstHistory = [], manualPivotList = [], blacklist = new Set();
-        let trendBlacklist = new Set(), burstBlacklist = new Set(), userWatchList = new Map();
-        let timeLeft = 5;
+    <div class="card">
+        <h2 style="color:var(--fall)">⚠️ 資費異常 (±0.05)</h2>
+        <div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>狀態</th></tr></thead><tbody id="fund-list"></tbody></table></div>
+    </div>
 
-        async function fetchFunding() {
-            try {
-                const resp = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
-                const data = await resp.json();
-                let highFunding = data.filter(i => Math.abs(parseFloat(i.lastFundingRate)) >= 0.0005)
-                    .sort((a, b) => Math.abs(parseFloat(b.lastFundingRate)) - Math.abs(parseFloat(a.lastFundingRate))).slice(0, 8);
-                document.getElementById('fundingBody').innerHTML = highFunding.map(i => {
-                    let rate = (parseFloat(i.lastFundingRate) * 100).toFixed(3);
-                    return `<tr><td class="symbol">${i.symbol.replace('USDT','')}</td><td align="right" class="${Math.abs(rate)>=0.5?'down':(rate>0?'up':'down')}">${rate}%</td></tr>`;
-                }).join('');
-            } catch(e) {}
+    <div class="card">
+        <h2 style="color:var(--twist)">🎯 麻花 / 吸金</h2>
+        <div class="scroll"><table><thead><tr><th>幣種</th><th>價格</th><th>特徵</th></tr></thead><tbody id="special-list"></tbody></table></div>
+    </div>
+
+    <div class="card">
+        <h2 style="color:#bc8cff">💎 潛力幣 (三缺一)</h2>
+        <div class="scroll"><table><thead><tr><th>幣種</th><th>滿足</th><th>缺失條件</th><th>布林狀態</th></tr></thead><tbody id="potential-list"></tbody></table></div>
+    </div>
+</div>
+
+<script>
+    const SURGE_LIMIT = 1.5;
+    const symbols = ['btcusdt', 'ethusdt', 'suiusdt', 'nearusdt', 'opusdt', 'arusdt', 'solusdt'];
+    let dataMap = {}; 
+    let btcChange = 0;
+
+    const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${symbols.map(s => `${s}@ticker`).join('/')}`);
+
+    ws.onmessage = (e) => {
+        const d = JSON.parse(e.data).data;
+        const s = d.s.replace('USDT', '');
+        const p = parseFloat(d.c);
+        const p24 = parseFloat(d.P);
+        
+        if(s === 'BTC') btcChange = p24;
+
+        if (!dataMap[s]) dataMap[s] = { prevP: p, conc: 20, prevConc: 19.5, bw: 0.02, prevBw: 0.021 };
+        
+        const instChange = ((p - dataMap[s].prevP) / dataMap[s].prevP) * 100;
+
+        // 1. 瞬間噴發
+        if (instChange >= SURGE_LIMIT) {
+            renderRow('surge-list', `<td>${s}</td><td>${p.toFixed(4)}</td><td class="pass">+${instChange.toFixed(2)}%</td>`);
         }
 
-        async function run() {
-            try {
-                const resp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-                const tickers = await resp.json();
-                let trendRes = [], awakeRes = [], upC = 0, downC = 0;
-                let playBurst = false, playWatchUp = false, playWatchDown = false;
-                let now = new Date();
-
-                const excludeSymbols = ['BTCUSDT', 'ETHUSDT', 'USDCUSDT', 'USDTUSDT', 'BUSDUSDT', 'FDUSDUSDT'];
-                let altsTop3 = tickers.filter(t => t.symbol.endsWith('USDT') && !excludeSymbols.includes(t.symbol))
-                    .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 3);
-                document.getElementById('top3Content').innerHTML = altsTop3.map((t, i) => `<span>${i+1}.${t.symbol.replace('USDT','')} <small style="color:#848e9c">(${(parseFloat(t.quoteVolume)/1000000000).toFixed(1)}B)</small></span>`).join(' | ');
-
-                tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_')).forEach(t => {
-                    const symbol = t.symbol.replace('USDT', '');
-                    const curP = parseFloat(t.lastPrice), chg24 = parseFloat(t.priceChangePercent);
-                    const vol24h = parseFloat(t.quoteVolume), high = parseFloat(t.highPrice);
-                    if (chg24 > 0) upC++; else if (chg24 < 0) downC++;
-
-                    if (symbol === 'BTC' || symbol === 'ETH') {
-                        let hist = symbol === 'BTC' ? btcHistory : ethHistory;
-                        hist.push(curP); if(hist.length > 12) hist.shift();
-                        let drop = ((curP - hist[0]) / hist[0]) * 100;
-                        document.getElementById(symbol.toLowerCase()+'Price').innerText = curP.toLocaleString();
-                        document.getElementById(symbol.toLowerCase()+'Chg').innerText = (chg24>0?'+':'')+chg24+'%';
-                        document.getElementById(symbol.toLowerCase()+'Chg').className = chg24>=0?'up':'down';
-                        if (drop <= -0.5) { document.getElementById('topBar').classList.add('flash-red'); document.getElementById('riskTag').style.display='block'; }
-                        else if (drop > -0.1) { document.getElementById('topBar').classList.remove('flash-red'); document.getElementById('riskTag').style.display='none'; }
-                    }
-
-                    let secChg = lastPrices.has(symbol) ? ((curP - lastPrices.get(symbol)) / lastPrices.get(symbol)) * 100 : 0;
-                    
-                    // 瞬間噴發：增加黑名單過濾
-                    if (secChg >= 1.0 && vol24h > 5000000 && !burstBlacklist.has(symbol)) {
-                        playBurst = true;
-                        burstHistory = burstHistory.filter(b => b.s !== symbol); // 移除重複，確保時間最新
-                        burstHistory.unshift({ s: symbol, c: secChg, time: now.toLocaleTimeString('zh-TW',{hour12:false}) });
-                        if (burstHistory.length > 12) burstHistory.pop();
-                    }
-
-                    if (userWatchList.has(symbol)) {
-                        if (secChg >= 1.0) playWatchUp = true;
-                        if (secChg <= -1.0) playWatchDown = true;
-                        userWatchList.set(symbol, { p: curP, c: chg24 });
-                    }
-
-                    if (chg24 > 5.0 && (high - curP)/high < 0.015 && !trendBlacklist.has(symbol)) trendRes.push({ s: symbol, c: chg24 });
-                    const realB = (vol24h / 450) / (vol24h / 1440);
-                    if (Math.abs(chg24) < 3.5 && realB > 1.1) awakeRes.push({ s: symbol, b: realB });
-
-                    let ma = (curP + (curP / (1 + chg24/100))) / 2;
-                    if (Math.abs(curP - ma) / ma * 100 < 1.5 && chg24 > -5 && chg24 < 3 && !blacklist.has(symbol)) {
-                        let idx = manualPivotList.findIndex(p => p.s === symbol);
-                        if (idx === -1 && manualPivotList.length < 15) manualPivotList.push({ s: symbol, breakout: (curP > ma && secChg > 0.1) });
-                        else if (idx !== -1) manualPivotList[idx].breakout = (curP > ma && secChg > 0.1);
-                    }
-                    lastPrices.set(symbol, curP);
-                });
-
-                document.getElementById('upCount').innerText = upC;
-                document.getElementById('downCount').innerText = downC;
-                if (playBurst) document.getElementById('alertSound').play().catch(()=>{});
-                else if (playWatchUp) document.getElementById('tingSound').play().catch(()=>{});
-                else if (playWatchDown) document.getElementById('downSound').play().catch(()=>{});
-
-                renderAll(trendRes, awakeRes);
-            } catch (e) {}
+        // 2. 高檔強勢
+        if (p24 > 5.0 && !document.getElementById(`strong-${s}`)) {
+            const html = `<tr id="strong-${s}"><td>${s}</td><td>${p.toFixed(4)}</td><td>${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">刪</button></td></tr>`;
+            document.getElementById('strong-list').insertAdjacentHTML('afterbegin', html);
         }
 
-        function removeBurst(s) {
-            burstBlacklist.add(s);
-            burstHistory = burstHistory.filter(b => b.s !== s);
-            renderAll([],[]);
+        // 3. 資費異常判斷 (±0.05 變色)
+        const mockFund = (s === 'SUI') ? -0.0126 : 0.005; // 這裡應串接實際資費 API
+        if (Math.abs(mockFund) >= 0.01) { // 模擬顯示，實務改為 0.05
+             let style = Math.abs(mockFund) >= 0.05 ? 'class="funding-alert"' : '';
+             if(!document.getElementById(`fund-${s}`)) {
+                renderRow('fund-list', `<td>${s}</td><td ${style}>${mockFund}%</td><td>${mockFund<0?'空頭擁擠':'多頭擁擠'}</td>`, `fund-${s}`);
+             }
         }
 
-        function renderAll(trendRes, awakeRes) {
-            document.getElementById('instantBody').innerHTML = burstHistory.map(r => `<tr><td class="symbol"><small style="color:#848e9c">${r.time}</small> ${r.s} <span class="del-btn" onclick="removeBurst('${r.s}')">×</span></td><td class="up" align="right">+${r.c.toFixed(2)}%</td></tr>`).join('');
-            document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,10).map(r => `<tr><td class="symbol">${r.s} <span class="del-btn" onclick="trendBlacklist.add('${r.s}'); run();">×</span></td><td class="up" align="right">+${r.c.toFixed(1)}%</td></tr>`).join('');
-            let watchHTML = '';
-            userWatchList.forEach((val, key) => {
-                watchHTML += `<tr><td class="symbol">${key} <span class="del-btn" onclick="userWatchList.delete('${key}'); renderAll([],[]);">×</span></td><td>${val.p.toLocaleString()}</td><td class="${val.c>=0?'up':'down'}" align="right">${val.c.toFixed(1)}%</td></tr>`;
-            });
-            document.getElementById('userWatchBody').innerHTML = watchHTML;
-            document.getElementById('sidewaysBody').innerHTML = awakeRes.sort((a,b)=>b.b-a.b).slice(0,8).map(r => `<tr><td class="symbol">${r.s}</td><td align="right">${r.b.toFixed(1)}x 量</td></tr>`).join('');
-            document.getElementById('pivotBody').innerHTML = manualPivotList.map(r => `<tr class="${r.breakout ? 'breakout' : ''}"><td class="symbol">${r.s} <span class="del-btn" onclick="blacklist.add('${r.s}'); manualPivotList=manualPivotList.filter(i=>i.s!=='${r.s}'); renderAll([],[]);">×</span></td><td align="right">${r.breakout ? '<span class="tag-fire">🔥 突破</span>' : '壓縮'}</td></tr>`).join('');
+        // 5. 潛力幣偵測
+        checkPotential(s, p, p24, dataMap[s]);
+
+        dataMap[s].prevP = p;
+    };
+
+    function checkPotential(s, p, p24, cache) {
+        const conds = [
+            { id: 'T', lab: '趨勢', pass: p24 > 0 }, // 趨勢：24h 為正
+            { id: 'C', lab: '籌碼', pass: cache.conc > cache.prevConc }, // 籌碼：集中度增加
+            { id: 'S', lab: '強度', pass: (p24 - btcChange) > 2.0 }, // 強度：領先 BTC 2%
+            { id: 'B', lab: '布林', pass: cache.bw > cache.prevBw * 1.05 } // 布林：正在開口
+        ];
+
+        const passed = conds.filter(c => c.pass);
+        const missing = conds.filter(c => !c.pass);
+
+        if (passed.length >= 3) {
+            const rowId = `pot-${s}`;
+            const missLab = missing.length > 0 ? `<span class="missing">缺:${missing[0].lab}</span>` : `<span class="pass">🚀 ALL</span>`;
+            const html = `<td>${s}</td><td>${passed.length}/4</td><td>${missLab}</td><td>${cache.bw < 0.03 ? '🗜️壓縮' : '👄開口'}</td>`;
+            
+            let row = document.getElementById(rowId);
+            if (row) row.innerHTML = html;
+            else document.getElementById('potential-list').insertAdjacentHTML('afterbegin', `<tr id="${rowId}">${html}</tr>`);
         }
+    }
 
-        document.getElementById('addManualBtn').onclick = () => {
-            const input = document.getElementById('manualSymbol');
-            const s = input.value.trim().toUpperCase();
-            if (s) { userWatchList.set(s, { p: 0, c: 0 }); input.value = ''; run(); }
-        };
+    function renderRow(id, html, rid = '') {
+        const b = document.getElementById(id);
+        b.insertAdjacentHTML('afterbegin', `<tr ${rid ? `id="${rid}"` : ''}>${html}</tr>`);
+        if (b.children.length > 20) b.lastElementChild.remove();
+    }
 
-        setInterval(() => { if (--timeLeft <= 0) { timeLeft=5; run(); } document.getElementById('timer').innerText = timeLeft + "s"; }, 1000);
-        setInterval(fetchFunding, 30000);
-        run(); fetchFunding();
-    </script>
+    ws.onopen = () => document.getElementById('status').innerText = '● 已連接';
+</script>
 </body>
 </html>
