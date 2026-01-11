@@ -2,21 +2,61 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V77 獵人終極完整版</title>
+    <title>V78 獵人終極版 (視覺修正)</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
-        .news-banner { background: #1a1a1a; border-bottom: 1px solid #444; height: 28px; display: flex; align-items: center; overflow: hidden; }
-        .calendar-label { background: #d29922; color: #000; font-weight: bold; padding: 0 8px; height: 100%; display: flex; align-items: center; font-size: 11px; white-space: nowrap; }
-        #calendar-content { display: flex; white-space: nowrap; padding-left: 15px; color: #fff; font-size: 12px; flex: 1; animation: scroll-cal 30s linear infinite; }
-        @keyframes scroll-cal { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        .cal-item { margin-right: 25px; color: #00ff00; }
+        
+        /* 修復後的跑馬燈容器 */
+        .news-banner { 
+            background: #1a1a1a; 
+            border-bottom: 1px solid #444; 
+            height: 28px; 
+            display: flex; 
+            align-items: center; 
+            overflow: hidden; 
+            position: relative; 
+        }
+        .calendar-label { 
+            background: #d29922; 
+            color: #000; 
+            font-weight: bold; 
+            padding: 0 10px; 
+            height: 100%; 
+            display: flex; 
+            align-items: center; 
+            font-size: 11px; 
+            white-space: nowrap; 
+            position: absolute; /* 固定在最左側 */
+            left: 0;
+            top: 0;
+            z-index: 10; /* 確保在文字上方 */
+            box-shadow: 5px 0 10px rgba(0,0,0,0.5); /* 增加陰影擋住穿過的文字 */
+        }
+        .news-container {
+            flex: 1;
+            margin-left: 100px; /* 預留給標籤的寬度，防止重疊 */
+            overflow: hidden;
+            display: flex;
+        }
+        #calendar-content { 
+            display: flex; 
+            white-space: nowrap; 
+            color: #fff; 
+            font-size: 12px; 
+            animation: scroll-cal 40s linear infinite; 
+        }
+        @keyframes scroll-cal { 
+            0% { transform: translateX(50%); } /* 從右側進入 */
+            100% { transform: translateX(-100%); } 
+        }
+        .cal-item { margin-right: 50px; color: #00ff00; }
         .cal-item b { color: #ffdd00; }
 
+        /* 其餘功能樣式保持不變 */
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 4px 10px; border-bottom: 1px solid var(--border); height: 32px; }
         .btc-eth-status { display: flex; gap: 12px; font-weight: bold; font-size: 12px; }
         .refresh-btn { background: #1f6feb; color: white; border: none; padding: 2px 10px; cursor: pointer; border-radius: 3px; }
-        
         .container { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr 1.6fr; gap: 4px; height: calc(100vh - 120px); padding: 4px; box-sizing: border-box; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; min-width: 0; }
         h2 { font-size: 0.8rem; padding: 8px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); }
@@ -24,13 +64,10 @@
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         td, th { padding: 6px 2px; border-bottom: 1px solid #21262d; text-align: center; white-space: nowrap; overflow: hidden; }
         .btn-del { background: #333; color: #888; border: none; padding: 1px 6px; cursor: pointer; border-radius: 2px; }
-        
         .funding-tag { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-left: 2px; }
         .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
-        
         @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514955; } 100% { background: transparent; } }
         .pot-alert { animation: blink-red 0.5s infinite; border: 1px solid var(--fall) !important; }
-        
         .check-tool { background: #161b22; border: 1px solid #444; margin: 4px; padding: 8px; border-radius: 4px; display: flex; align-items: center; gap: 15px; }
         .check-input { background: #000; border: 1px solid #58a6ff; color: #fff; padding: 4px 8px; border-radius: 3px; width: 100px; text-transform: uppercase; }
         .check-btn { background: #238636; color: white; border: none; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; }
@@ -40,8 +77,10 @@
 <body>
 
 <div class="news-banner">
-    <div class="calendar-label">📅 財經日曆 (自動)</div>
-    <div id="calendar-content">同步中...</div>
+    <div class="calendar-label">📅 自動財經日曆</div>
+    <div class="news-container">
+        <div id="calendar-content">同步中...</div>
+    </div>
 </div>
 
 <div class="header-main">
@@ -61,7 +100,7 @@
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (獵人終極版)</h2><div class="scroll"><table><thead><th style="width:38%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (終極修正版)</h2><div class="scroll"><table><thead><th style="width:38%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
 <div class="check-tool">
@@ -94,7 +133,8 @@
             { time: "01/15 21:30", name: "美國初請失業金人數" },
             { time: "01/16 23:00", name: "密大消費者信心指數" }
         ];
-        document.getElementById('calendar-content').innerHTML = [...events, ...events].map(e => `<div class="cal-item"><b>[${e.time}]</b> ${e.name}</div>`).join('');
+        // 重複三次確保長度足夠循環
+        document.getElementById('calendar-content').innerHTML = [...events, ...events, ...events].map(e => `<div class="cal-item"><b>[${e.time}]</b> ${e.name}</div>`).join('');
     }
     updateCalendar();
 
@@ -187,7 +227,7 @@
     function runCheck() {
         const sym = document.getElementById('manual-symbol').value.toUpperCase().trim();
         const target = fullMarketData.find(d => d.s === sym + 'USDT');
-        if (!target) { document.getElementById('check-result').innerText = "❌ 未找到"; return; }
+        if (!target) return;
         const p24 = parseFloat(target.P), vol = parseFloat(target.q), range = ((parseFloat(target.h)-parseFloat(target.l))/parseFloat(target.l))*100;
         document.getElementById('check-result').innerText = `${sym}：評分 ${calculateScore(p24, vol, range)} | 漲: ${p24}% | 震: ${range.toFixed(2)}%`;
     }
