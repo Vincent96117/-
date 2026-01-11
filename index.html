@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V110 數據同步強化版</title>
+    <title>HUNTER PRO | V111 合約幣種純化版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; --double: #f2a900; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -36,7 +36,7 @@
 
 <div class="header-main">
     <div><span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | <span style="color:#627eea">ETH: <span id="eth-live">--</span></span></div>
-    <div style="color:var(--strong); font-weight:bold;">HUNTER PRO | V110 數據強化版</div>
+    <div style="color:var(--strong); font-weight:bold;">HUNTER PRO | V111 合約幣種純化版</div>
     <button onclick="location.reload()">🔄 重整</button>
 </div>
 
@@ -47,7 +47,7 @@
     <div class="card">
         <h2 style="color:var(--fall)">⚠️ 資金費率</h2>
         <div style="height: 30%; border-bottom: 2px solid #333;" class="scroll"><table><tbody id="fund-list"></tbody></table></div>
-        <h2 style="color:var(--double)">⏱️ 08:00 原始評分對標</h2>
+        <h2 style="color:var(--double)">⏱️ 08:00 原始評分對標 (僅合約)</h2>
         <div id="snap-list" class="scroll" style="background: #050505;"></div>
     </div>
     
@@ -65,12 +65,22 @@
     let btcChange = 0, fundingMap = {}, dataMap = {}, potOld = [], potNew = [], lockedSnapshot = [];
     let pushedSet = new Set();
 
-    // 🟢 初始化強化：一次抓好開盤價與現價，解決顯示不出幣的問題
+    // 🟢 僅針對對標清單過濾非合約幣種
     async function initSnapshot() {
         try {
+            // 抓取合約所有交易對，用來過濾
+            const exchangeRes = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+            const exchangeData = await exchangeRes.json();
+            const futureSymbols = new Set(exchangeData.symbols.map(s => s.symbol));
+
+            // 抓取 24hr 數據
             const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
             const data = await res.json();
-            lockedSnapshot = data.filter(d => d.symbol.endsWith('USDT')).map(d => {
+            
+            lockedSnapshot = data.filter(d => {
+                // 必須是合約交易對 且 以 USDT 結尾
+                return futureSymbols.has(d.symbol) && d.symbol.endsWith('USDT');
+            }).map(d => {
                 const s = d.symbol.replace('USDT','');
                 const p24 = parseFloat(d.priceChangePercent);
                 const vol = parseFloat(d.quoteVolume);
@@ -79,13 +89,13 @@
                 
                 let score = (vol > 8000000) ? Math.min(100, Math.round((p24*10)+30)) : 0;
                 
-                // 立即預載數據，避免等待 WebSocket
                 if(!dataMap[s]) dataMap[s] = {lp: lastP, lastP: lastP, avg4hVol: 5000000};
                 
                 return { s, open, originalScore: score };
             }).filter(x => x.originalScore >= 40);
+            
             renderSnapshot();
-        } catch (e) {}
+        } catch (e) { console.error("Init Snapshot failed"); }
     }
 
     function renderSnapshot() {
@@ -106,7 +116,7 @@
         });
     }
 
-    // 🔵 核心邏輯：保持 V96 原味，不改動任何原始篩選
+    // 🔵 核心邏輯保持不變 (V96 原味)
     function connectWS() {
         const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
         ws.onmessage = (e) => {
@@ -131,7 +141,6 @@
                 const trendScore = Math.min(100, Math.round(rsS + sqS + Math.min(25, (volRatio / 1.5) * 12)));
                 const desc = `${p24>btcChange?'超盤':'隨盤'} | 縮${range.toFixed(1)}% | ${volRatio.toFixed(1)}x`;
 
-                // 🔥 恢復原味高檔強勢 (V96: p24 > 8.0)
                 const sl = document.getElementById('strong-list');
                 let er = [...sl.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
                 if (p24 > 8.0) {
@@ -142,7 +151,6 @@
                 if(coreScore >= 20) updateList(potOld, {s, score:coreScore, desc, isDouble:(trendScore>=20)}, 'table-old');
                 if(trendScore >= 20 && !potOld.find(x=>x.s===s)) updateList(potNew, {s, score:trendScore, desc, isDouble:false}, 'table-new');
 
-                // 🚀 恢復原味瞬間噴發 (V96: 1.2%)
                 const inst = ((p-dataMap[s].lp)/dataMap[s].lp)*100;
                 if(inst>=1.2) {
                     const b = document.getElementById('surge-list');
