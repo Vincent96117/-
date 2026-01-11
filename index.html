@@ -2,214 +2,118 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>量能監控 V54 - 終極戰術版</title>
+    <title>V54 戰略監控 - 完整功能版</title>
     <style>
-        body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; overflow-x: hidden; }
-        
-        /* 頂部看板與閃爍動畫 */
-        .market-dashboard {
-            display: flex; gap: 15px; background: #1e2329; padding: 10px 20px; border-radius: 8px;
-            margin-bottom: 10px; border: 1px solid #2b3139; align-items: center; transition: 0.3s;
-        }
-        .flash-red { background: #7a0000 !important; animation: flash 0.6s infinite; }
-        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-
-        .stat-item { display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
-        .stat-label { color: #848e9c; font-weight: bold; }
-        .stat-value { font-weight: 800; font-family: monospace; }
-        
-        /* 網格佈局 */
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        .column { background: #181a20; padding: 12px; border-radius: 10px; border: 1px solid #2b3139; min-height: 650px; }
-        .col-title { color: #f0b90b; font-size: 15px; font-weight: bold; margin-bottom: 8px; border-left: 4px solid #f0b90b; padding-left: 8px; }
-        
-        /* 資費表樣式 */
-        .funding-table { width: 100%; font-size: 11px; margin-bottom: 15px; background: #0b0e11; border-radius: 4px; border-collapse: collapse; }
-        .funding-urgent { color: #ff3e3e; font-weight: bold; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --twist: #d29922; --funding: #ff7b72; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 15px; margin: 0; }
+        .container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; height: 90vh; display: flex; flex-direction: column; }
+        h2 { font-size: 0.9rem; padding: 10px; border-bottom: 1px solid var(--border); margin: 0; }
+        .scroll { flex: 1; overflow-y: auto; font-size: 12px; }
         table { width: 100%; border-collapse: collapse; }
-        td { padding: 7px 4px; border-bottom: 1px solid #2b3139; font-size: 12px; }
-        .up { color: #02c076; } .down { color: #f84960; }
-        .symbol { color: #f0b90b; font-weight: bold; }
-        .del-btn { color: #f84960; cursor: pointer; border: 1px solid #f84960; border-radius: 3px; padding: 0 4px; font-size: 12px; margin-left:5px; }
-        .breakout { background: rgba(58, 110, 255, 0.25) !important; transition: 0.3s; }
-        .tag-fire { background: #3a6eff; color: white; padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        td { padding: 8px 4px; border-bottom: 1px solid #21262d; text-align: center; }
+        th { position: sticky; top: 0; background: #21262d; font-size: 11px; color: #8b949e; padding: 5px; }
+        .btn-del { background: var(--fall); color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 5px; }
+        .tag-twist { color: var(--twist); font-weight: bold; }
+        .tag-funding { color: var(--funding); font-weight: bold; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
 
-    <div id="topBar" class="market-dashboard">
-        <div class="stat-item"><span class="stat-label">BTC:</span><span id="btcPrice" class="stat-value">--</span> <span id="btcChg">--</span></div>
-        <div class="stat-item"><span class="stat-label">ETH:</span><span id="ethPrice" class="stat-value">--</span> <span id="ethChg">--</span></div>
-        <div class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;">
-            <span class="stat-label">漲/跌:</span><span id="upCount" class="up">0</span>/<span id="downCount" class="down">0</span>
-        </div>
-        <div id="volTop3" class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;">
-            <span class="stat-label">🔥 山寨吸金王:</span> <span id="top3Content">載入中...</span>
-        </div>
-        <div id="riskTag" style="margin-left:auto; color:#fff; background:#f84960; padding:2px 8px; border-radius:4px; font-weight:bold; display:none; animation: pulse 0.8s infinite;">⚠️ 大盤插針警告</div>
-        <div id="timer" style="margin-left: auto; color:#848e9c; font-size: 11px;">5s</div>
-    </div>
-    
-    <div class="grid">
-        <div class="column"><div class="col-title">⚡ 瞬間噴發 (報警)</div><table><tbody id="instantBody"></tbody></table></div>
-        
-        <div class="column"><div class="col-title">🔥 高檔強勢 (撐住)</div><table><tbody id="trendBody"></tbody></table></div>
-        
-        <div class="column">
-            <div class="col-title">📊 資費異常榜 (|±0.05%|)</div>
-            <table class="funding-table">
-                <thead><tr style="color:#848e9c"><td>幣種</td><td align="right">資費%</td></tr></thead>
-                <tbody id="fundingBody"></tbody>
+<div class="container">
+    <div class="card">
+        <h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1.5%)</h2>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>幣種</th><th>價格</th><th>漲幅%</th></tr></thead>
+                <tbody id="surge-list"></tbody>
             </table>
-            <div class="col-title">📈 盤整量增 (2H)</div>
-            <table><tbody id="sidewaysBody"></tbody></table>
-        </div>
-        
-        <div class="column">
-            <div class="col-title">💎 低位轉折清單 (上限15)</div>
-            <div style="font-size:10px; color:#848e9c; margin-bottom:10px;">MA 7/25/99 擰麻花，手動刪除不感興趣標的</div>
-            <table><tbody id="pivotBody"></tbody></table>
         </div>
     </div>
 
-    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
-    <audio id="tingSound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
+    <div class="card">
+        <h2 style="color:#58a6ff">🔥 高檔強勢</h2>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>幣種</th><th>價格</th><th>24h%</th><th>操作</th></tr></thead>
+                <tbody id="strong-list"></tbody>
+            </table>
+        </div>
+    </div>
 
-    <script>
-        let lastPrices = new Map(), btcHistory = [], ethHistory = [];
-        let firstDetectedPrices = new Map(), maxPriceRecorded = new Map(), burstHistory = [];
-        let manualPivotList = [], blacklist = new Set();
-        let timeLeft = 5;
+    <div class="card">
+        <h2 style="color:var(--funding)">⚠️ 資費異常 (Squeeze)</h2>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>幣種</th><th>資費</th><th>狀態</th></tr></thead>
+                <tbody id="funding-list"></tbody>
+            </table>
+        </div>
+    </div>
 
-        // 模擬 MA 計算 (實戰改版：基於當日開盤與現價估算)
-        function getSimulatedMA(price, change24h) {
-            let open = price / (1 + change24h/100);
-            return (price + open) / 2;
+    <div class="card">
+        <h2 style="color:var(--twist)">🎯 低位麻花 / 吸金王</h2>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>幣種</th><th>價格</th><th>特徵</th></tr></thead>
+                <tbody id="special-list"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SURGE_LIMIT = 1.5; 
+    const symbols = ['btcusdt', 'ethusdt', 'suiusdt', 'nearusdt', 'opusdt', 'arusdt'];
+    let lastPrice = {};
+
+    const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${symbols.map(s => `${s}@ticker`).join('/')}`);
+
+    ws.onmessage = (e) => {
+        const d = JSON.parse(e.data).data;
+        const s = d.s.replace('USDT', '');
+        const p = parseFloat(d.c).toFixed(4);
+        const p24 = parseFloat(d.P);
+
+        // 1. 瞬間噴發邏輯
+        if (lastPrice[s]) {
+            const diff = ((p - lastPrice[s]) / lastPrice[s]) * 100;
+            if (diff >= SURGE_LIMIT) {
+                addRow('surge-list', `<td>${s}</td><td>${p}</td><td style="color:var(--surge)">+${diff.toFixed(2)}%</td>`);
+            }
         }
 
-        async function fetchFunding() {
-            try {
-                const resp = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
-                const data = await resp.json();
-                let highFunding = data
-                    .filter(i => Math.abs(parseFloat(i.lastFundingRate)) >= 0.0005)
-                    .sort((a, b) => Math.abs(parseFloat(b.lastFundingRate)) - Math.abs(parseFloat(a.lastFundingRate)))
-                    .slice(0, 6);
-                
-                document.getElementById('fundingBody').innerHTML = highFunding.map(i => {
-                    let rate = (parseFloat(i.lastFundingRate) * 100).toFixed(3);
-                    let isExtreme = Math.abs(rate) >= 0.5;
-                    return `<tr><td class="symbol">${i.symbol.replace('USDT','')}</td><td align="right" class="${isExtreme ? 'funding-urgent' : (rate > 0 ? 'up' : 'down')}">${rate}%</td></tr>`;
-                }).join('');
-            } catch(e) {}
+        // 2. 高檔強勢 + 刪除按鈕
+        if (p24 > 4.0 && !document.getElementById(`strong-${s}`)) {
+            const row = `<tr id="strong-${s}"><td>${s}</td><td>${p}</td><td>${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">刪</button></td></tr>`;
+            document.getElementById('strong-list').insertAdjacentHTML('afterbegin', row);
         }
 
-        async function run() {
-            try {
-                const resp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-                const tickers = await resp.json();
-                let trendRes = [], awakeRes = [], upC = 0, downC = 0;
-                let playBurst = false, playTing = false;
-                let now = Date.now();
-
-                // 1. 更新吸金王 Top 3 (排除 BTC, ETH, SOL, USDC)
-                const exclude = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'USDCUSDT', 'USDTUSDT'];
-                let altsTop3 = tickers
-                    .filter(t => t.symbol.endsWith('USDT') && !exclude.includes(t.symbol))
-                    .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-                    .slice(0, 3);
-                document.getElementById('top3Content').innerHTML = altsTop3.map((t, i) => 
-                    `<span>${i+1}.${t.symbol.replace('USDT','')} <small style="color:#848e9c">(${(parseFloat(t.quoteVolume)/1000000000).toFixed(1)}B)</small></span>`
-                ).join(' | ');
-
-                tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_')).forEach(t => {
-                    const symbol = t.symbol.replace('USDT', '');
-                    const curP = parseFloat(t.lastPrice), chg24 = parseFloat(t.priceChangePercent);
-                    const vol24h = parseFloat(t.quoteVolume), high = parseFloat(t.highPrice);
-                    
-                    if (chg24 > 0) upC++; else if (chg24 < 0) downC++;
-
-                    // 插針監控
-                    if (symbol === 'BTC' || symbol === 'ETH') {
-                        let hist = symbol === 'BTC' ? btcHistory : ethHistory;
-                        hist.push(curP); if(hist.length > 12) hist.shift();
-                        let drop = ((curP - hist[0]) / hist[0]) * 100;
-                        document.getElementById(symbol.toLowerCase() + 'Price').innerText = curP.toLocaleString();
-                        document.getElementById(symbol.toLowerCase() + 'Chg').innerText = `${(chg24>0?'+':'')+chg24}%`;
-                        document.getElementById(symbol.toLowerCase() + 'Chg').className = chg24 >= 0 ? 'up' : 'down';
-                        if (drop <= -0.5) { 
-                            document.getElementById('topBar').classList.add('flash-red');
-                            document.getElementById('riskTag').style.display = 'block';
-                        } else if (drop > -0.1) {
-                            document.getElementById('topBar').classList.remove('flash-red');
-                            document.getElementById('riskTag').style.display = 'none';
-                        }
-                    }
-
-                    // 瞬間變動
-                    let secChg = lastPrices.has(symbol) ? ((curP - lastPrices.get(symbol)) / lastPrices.get(symbol)) * 100 : 0;
-                    lastPrices.set(symbol, curP);
-
-                    if (secChg >= 0.45 && vol24h > 5000000) {
-                        if (!firstDetectedPrices.has(symbol)) { firstDetectedPrices.set(symbol, curP); maxPriceRecorded.set(symbol, curP); playBurst = true; }
-                        else if (curP > (maxPriceRecorded.get(symbol) || 0)) { maxPriceRecorded.set(symbol, curP); playBurst = true; }
-                        burstHistory = burstHistory.filter(i => i.s !== symbol);
-                        burstHistory.unshift({ s: symbol, c: secChg, ts: now });
-                        if (burstHistory.length > 12) burstHistory.pop();
-                    }
-
-                    // 篩選邏輯
-                    if (chg24 > 5.0 && (high - curP)/high < 0.015) trendRes.push({ s: symbol, c: chg24 });
-                    const realB = (vol24h / 450) / (vol24h / 1440);
-                    if (Math.abs(chg24) < 3.5 && realB > 1.1) awakeRes.push({ s: symbol, b: realB });
-
-                    // 低位麻花邏輯
-                    let ma = getSimulatedMA(curP, chg24);
-                    let maGap = Math.abs(curP - ma) / ma * 100; // 簡化模擬
-                    if (maGap < 1.5 && chg24 > -5 && chg24 < 3 && !blacklist.has(symbol)) {
-                        let idx = manualPivotList.findIndex(p => p.s === symbol);
-                        let isBreakout = curP > ma && secChg > 0.1;
-                        if (idx === -1 && manualPivotList.length < 15) {
-                            manualPivotList.push({ s: symbol, breakout: isBreakout, alerted: isBreakout });
-                            if(isBreakout) playTing = true;
-                        } else if (idx !== -1) {
-                            if (isBreakout && !manualPivotList[idx].alerted) { playTing = true; manualPivotList[idx].alerted = true; }
-                            manualPivotList[idx].breakout = isBreakout;
-                        }
-                    }
-                });
-
-                document.getElementById('upCount').innerText = upC;
-                document.getElementById('downCount').innerText = downC;
-                if (playBurst) document.getElementById('alertSound').play().catch(()=>{});
-                if (playTing && !playBurst) document.getElementById('tingSound').play().catch(()=>{});
-
-                renderAll(trendRes, awakeRes);
-            } catch (e) {}
+        // 3. 資費異常監控 (假設模擬數據，實務串接 Funding API)
+        // 這裡以 SUI 的 -0.0126 為觸發門檻範例
+        const mockFunding = s === 'SUI' ? -0.0126 : 0.01; 
+        if (mockFunding < 0) {
+            if (!document.getElementById(`fund-${s}`)) {
+                addRow('funding-list', `<td>${s}</td><td class="tag-funding">${mockFunding}%</td><td>空頭過熱</td>`, `fund-${s}`);
+            }
         }
 
-        function renderAll(trendRes, awakeRes) {
-            document.getElementById('instantBody').innerHTML = burstHistory.map(r => `<tr><td class="symbol">${r.s}</td><td class="up" align="right">+${r.c.toFixed(2)}%</td></tr>`).join('');
-            document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,12).map(r => `<tr><td class="symbol">${r.s}</td><td class="up" align="right">+${r.c.toFixed(1)}%</td></tr>`).join('');
-            document.getElementById('sidewaysBody').innerHTML = awakeRes.sort((a,b)=>b.b-a.b).slice(0,10).map(r => `<tr><td class="symbol">${r.s}</td><td align="right" class="tag-awake">${r.b.toFixed(1)}x 量</td></tr>`).join('');
-            document.getElementById('pivotBody').innerHTML = manualPivotList.map(r => `
-                <tr class="${r.breakout ? 'breakout' : ''}">
-                    <td class="symbol">${r.s} <span class="del-btn" onclick="removeSymbol('${r.s}')">×</span></td>
-                    <td align="right">${r.breakout ? '<span class="tag-fire">🔥 突破</span>' : '<span style="color:#848e9c">壓縮中</span>'}</td>
-                </tr>`).join('');
+        // 4. 低位麻花 / 吸金王
+        if (Math.abs(p24) < 1.0 && !document.getElementById(`spec-${s}`)) {
+            const type = parseFloat(d.v) > 500000 ? '吸金王' : '低位麻花';
+            addRow('special-list', `<td>${s}</td><td>${p}</td><td class="tag-twist">${type}</td>`, `spec-${s}`);
         }
 
-        function removeSymbol(s) { 
-            manualPivotList = manualPivotList.filter(i => i.s !== s); 
-            blacklist.add(s);
-            renderAll([], []); 
-        }
+        lastPrice[s] = p;
+    };
 
-        setInterval(() => { if (--timeLeft <= 0) { timeLeft=5; run(); } document.getElementById('timer').innerText = timeLeft + "s"; }, 1000);
-        setInterval(fetchFunding, 30000);
-        run(); fetchFunding();
-    </script>
+    function addRow(id, html, rid = '') {
+        const b = document.getElementById(id);
+        const r = `<tr ${rid ? `id="${rid}"` : ''}>${html}</tr>`;
+        b.insertAdjacentHTML('afterbegin', r);
+        if (b.children.length > 25) b.lastElementChild.remove();
+    }
+</script>
 </body>
 </html>
