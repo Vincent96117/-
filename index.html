@@ -2,18 +2,19 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V54 幣圈獵人 - 2026 決戰版</title>
+    <title>V54 幣圈獵人 - 究極監控版</title>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --twist: #d29922; --strong: #58a6ff; --news: #f0883e; }
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --twist: #d29922; --strong: #58a6ff; --alert: #f0883e; --news: #f0883e; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 10px; margin: 0; font-size: 12px; }
+        .header { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid var(--border); }
         
-        /* 消息面置頂區 */
-        .news-header { background: rgba(240, 136, 62, 0.15); border: 1px solid var(--news); border-radius: 6px; padding: 10px; margin-bottom: 10px; display: flex; gap: 20px; align-items: center; }
-        .news-item { border-left: 3px solid var(--news); padding-left: 10px; }
-        .news-item b { color: var(--news); font-size: 14px; }
+        /* 置頂消息面樣式 */
+        .news-banner { background: rgba(240, 136, 62, 0.1); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin: 10px 0; display: flex; gap: 25px; align-items: center; }
+        .news-item { border-left: 2px solid var(--news); padding-left: 10px; }
+        .news-item b { color: var(--news); display: block; margin-bottom: 2px; }
         .news-time { color: #8b949e; font-size: 11px; }
 
-        .container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; height: 85vh; }
+        .container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; height: 80vh; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; }
         h2 { font-size: 0.85rem; padding: 10px; margin: 0; border-bottom: 1px solid var(--border); background: #1c2128; }
         .scroll { flex: 1; overflow-y: auto; }
@@ -22,28 +23,30 @@
         th { background: #21262d; color: #8b949e; position: sticky; top: 0; font-size: 11px; }
         .btn-del { background: var(--fall); color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 4px; }
         .missing { color: #ff7b72; font-weight: bold; }
-        .pass { color: var(--surge); font-weight: bold; }
-        .funding-alert { color: #f8e3a1; background: rgba(240,136,62,0.3); font-weight: bold; }
+        .pass { color: var(--surge); }
+        .funding-alert { color: #f8e3a1; background: rgba(240,136,62,0.4) !important; font-weight: bold; } /* 強化資費跳色提醒 */
     </style>
 </head>
 <body>
 
-<div class="news-header">
-    <div style="font-weight:bold; font-size: 16px;">📅 本週重要消息面:</div>
+<div class="header">
+    <div>V54 究極版 | 噴發門檻: 1.5% | 2026 戰略佈局</div>
+    <div id="status">連接中...</div>
+</div>
+
+<div class="news-banner">
+    <div style="font-weight:bold; font-size: 14px;">📅 本週重要消息:</div>
     <div class="news-item">
-        <b>美國 12 月 CPI 數據 (通膨決戰)</b><br>
+        <b>美國 12 月 CPI 數據</b>
         <span class="news-time">2026/01/13 (週二) 21:30</span>
     </div>
     <div class="news-item">
-        <b>初請失業金人數</b><br>
+        <b>初請失業金人數</b>
         <span class="news-time">2026/01/15 (週四) 21:30</span>
     </div>
     <div class="news-item">
-        <b>密大消費者信心指數</b><br>
+        <b>密大消費者信心指數</b>
         <span class="news-time">2026/01/16 (週五) 23:00</span>
-    </div>
-    <div style="margin-left: auto; text-align: right;">
-        <span id="status">連接中...</span>
     </div>
 </div>
 
@@ -59,7 +62,7 @@
     </div>
 
     <div class="card">
-        <h2 style="color:var(--fall)">⚠️ 資費異常 (±0.05)</h2>
+        <h2 style="color:var(--fall)">⚠️ 資費異常</h2>
         <div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>狀態</th></tr></thead><tbody id="fund-list"></tbody></table></div>
     </div>
 
@@ -70,13 +73,13 @@
 
     <div class="card">
         <h2 style="color:#bc8cff">💎 潛力幣 (三缺一)</h2>
-        <div class="scroll"><table><thead><tr><th>幣種</th><th>滿足</th><th>缺失條件</th><th>布林狀態</th></tr></thead><tbody id="potential-list"></tbody></table></div>
+        <div class="scroll"><table><thead><tr><th>幣種</th><th>滿足</th><th>缺失條件</th><th>布林</th></tr></thead><tbody id="potential-list"></tbody></table></div>
     </div>
 </div>
 
 <script>
     const SURGE_LIMIT = 1.5;
-    const symbols = ['btcusdt', 'ethusdt', 'suiusdt', 'nearusdt', 'opusdt', 'arusdt', 'solusdt'];
+    const symbols = ['btcusdt', 'ethusdt', 'suiusdt', 'nearusdt', 'opusdt', 'arusdt', 'bnbusdt', 'solusdt'];
     let dataMap = {}; 
     let btcChange = 0;
 
@@ -90,7 +93,7 @@
         
         if(s === 'BTC') btcChange = p24;
 
-        if (!dataMap[s]) dataMap[s] = { prevP: p, conc: 20, prevConc: 19.5, bw: 0.02, prevBw: 0.021 };
+        if (!dataMap[s]) dataMap[s] = { prevP: p, conc: 20, prevConc: 18, bw: 0.05, prevBw: 0.05 };
         
         const instChange = ((p - dataMap[s].prevP) / dataMap[s].prevP) * 100;
 
@@ -105,16 +108,23 @@
             document.getElementById('strong-list').insertAdjacentHTML('afterbegin', html);
         }
 
-        // 3. 資費異常判斷 (±0.05 變色)
-        const mockFund = (s === 'SUI') ? -0.0126 : 0.005; // 這裡應串接實際資費 API
-        if (Math.abs(mockFund) >= 0.01) { // 模擬顯示，實務改為 0.05
-             let style = Math.abs(mockFund) >= 0.05 ? 'class="funding-alert"' : '';
-             if(!document.getElementById(`fund-${s}`)) {
-                renderRow('fund-list', `<td>${s}</td><td ${style}>${mockFund}%</td><td>${mockFund<0?'空頭擁擠':'多頭擁擠'}</td>`, `fund-${s}`);
+        // 3. 資費異常 (±0.05 跳色邏輯)
+        const fund = (s === 'SUI') ? -0.0512 : 0.01; // 模擬資費
+        if (Math.abs(fund) >= 0.01) { // 模擬顯示門檻
+            if(!document.getElementById(`fund-${s}`)) {
+                const alertStyle = Math.abs(fund) >= 0.05 ? 'class="funding-alert"' : '';
+                renderRow('fund-list', `<td>${s}</td><td ${alertStyle}>${fund}%</td><td>${fund < 0 ? '空頭擁擠' : '監控中'}</td>`, `fund-${s}`);
+            }
+        }
+
+        // 4. 麻花/吸金 (原本邏輯保留)
+        if (Math.abs(p24) < 1.0) {
+             if(!document.getElementById(`spec-${s}`)) {
+                renderRow('special-list', `<td>${s}</td><td>${p.toFixed(4)}</td><td style="color:var(--twist)">低位麻花</td>`, `spec-${s}`);
              }
         }
 
-        // 5. 潛力幣偵測
+        // 5. 潛力幣邏輯 (四選三)
         checkPotential(s, p, p24, dataMap[s]);
 
         dataMap[s].prevP = p;
@@ -122,10 +132,10 @@
 
     function checkPotential(s, p, p24, cache) {
         const conds = [
-            { id: 'T', lab: '趨勢', pass: p24 > 0 }, // 趨勢：24h 為正
-            { id: 'C', lab: '籌碼', pass: cache.conc > cache.prevConc }, // 籌碼：集中度增加
-            { id: 'S', lab: '強度', pass: (p24 - btcChange) > 2.0 }, // 強度：領先 BTC 2%
-            { id: 'B', lab: '布林', pass: cache.bw > cache.prevBw * 1.05 } // 布林：正在開口
+            { id: 'T', lab: '趨勢', pass: p24 > 0 }, 
+            { id: 'C', lab: '籌碼', pass: cache.conc > cache.prevConc },
+            { id: 'S', lab: '強度', pass: (p24 - btcChange) > 2.0 },
+            { id: 'B', lab: '布林', pass: cache.bw > cache.prevBw }
         ];
 
         const passed = conds.filter(c => c.pass);
@@ -134,7 +144,7 @@
         if (passed.length >= 3) {
             const rowId = `pot-${s}`;
             const missLab = missing.length > 0 ? `<span class="missing">缺:${missing[0].lab}</span>` : `<span class="pass">🚀 ALL</span>`;
-            const html = `<td>${s}</td><td>${passed.length}/4</td><td>${missLab}</td><td>${cache.bw < 0.03 ? '🗜️壓縮' : '👄開口'}</td>`;
+            const html = `<td>${s}</td><td>${passed.length}/4</td><td>${missLab}</td><td>${cache.bw < 0.03 ? '壓縮' : '開口'}</td>`;
             
             let row = document.getElementById(rowId);
             if (row) row.innerHTML = html;
@@ -148,7 +158,7 @@
         if (b.children.length > 20) b.lastElementChild.remove();
     }
 
-    ws.onopen = () => document.getElementById('status').innerText = '● 已連接';
+    ws.onopen = () => document.getElementById('status').innerText = '● 已連接 Binance';
 </script>
 </body>
 </html>
