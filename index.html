@@ -2,21 +2,22 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V55 幣圈獵人 - 全市場掃描</title>
+    <title>V55 獵人終極版 - 全市場監控</title>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --twist: #d29922; --strong: #58a6ff; --news: #ff6600; }
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --twist: #d29922; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 10px; margin: 0; font-size: 12px; }
-
-        /* 頂部全局看板 */
-        .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 10px 15px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 5px; }
-        .market-info { display: flex; gap: 20px; align-items: center; }
-        .btc-eth-status { display: flex; gap: 15px; font-weight: bold; border-right: 1px solid #444; padding-right: 15px; font-size: 13px; }
-        .refresh-btn { background: #30363d; color: white; border: 1px solid #555; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; }
         
-        /* 消息面看板 */
-        .news-banner { display: flex; align-items: center; background: rgba(255, 102, 0, 0.1); padding: 6px 15px; border: 1px solid #ff660066; border-radius: 4px; margin-bottom: 10px; font-size: 11px; }
+        /* 頂部全局看板 */
+        .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 8px 15px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 5px; }
+        .btc-eth-status { display: flex; gap: 20px; font-weight: bold; border-right: 1px solid #444; padding-right: 20px; font-size: 14px; }
+        .refresh-btn { background: #30363d; color: white; border: 1px solid #555; padding: 4px 12px; cursor: pointer; border-radius: 3px; }
 
-        /* 五欄容器 */
+        /* 消息看板 */
+        .news-banner { display: flex; align-items: center; background: rgba(255, 69, 0, 0.1); padding: 8px 15px; border: 1px solid #ff450066; border-radius: 4px; margin-bottom: 10px; }
+        .news-item { margin-right: 30px; border-left: 2px solid #ff4500; padding-left: 10px; }
+        .news-item b { color: #ff4500; display: block; }
+
+        /* 五欄佈局 */
         .container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; height: 82vh; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
         h2 { font-size: 0.85rem; padding: 10px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
@@ -25,146 +26,131 @@
         td, th { padding: 8px 4px; border-bottom: 1px solid #21262d; text-align: center; }
         th { background: #21262d; color: #8b949e; position: sticky; top: 0; }
 
-        /* 功能組件 */
+        /* 功能性樣式 */
         .btn-del { background: #333; color: #888; border: none; padding: 2px 6px; cursor: pointer; border-radius: 2px; }
-        .btn-del:hover { background: var(--fall); color: white; }
         .funding-alert { background: #a6611a !important; color: white !important; font-weight: bold; }
-        .missing { color: #ff7b72; font-weight: bold; }
         .pass { color: var(--surge); font-weight: bold; }
+        .missing { color: #ff7b72; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="header-main">
-    <div class="market-info">
+    <div style="display:flex; align-items:center;">
         <div class="btc-eth-status">
-            <span id="btc-live" style="color:#f2a900">BTC: --</span>
-            <span id="eth-live" style="color:#627eea">ETH: --</span>
+            <span id="btc-live">BTC: --</span>
+            <span id="eth-live">ETH: --</span>
         </div>
-        <div id="market-breadth">市場寬度 | 上漲: <span style="color:var(--surge)" id="up-count">--</span> | 下跌: <span style="color:var(--fall)" id="down-count">--</span></div>
+        <div id="market-stats" style="margin-left:20px;">市場寬度 | 上漲: <span id="up-cnt" style="color:var(--surge)">--</span> | 下跌: <span id="down-cnt" style="color:var(--fall)">--</span></div>
     </div>
     <button class="refresh-btn" onclick="location.reload()">🔄 刷新重連</button>
 </div>
 
 <div class="news-banner">
-    <b style="color:var(--news); margin-right:15px;">📅 本週重要消息:</b>
-    <span style="margin-right:25px;">🇺🇸 CPI 數據: 01/13 21:30</span>
-    <span style="margin-right:25px;">📉 初請失業金: 01/15 21:30</span>
-    <span>📊 密大消費者信心: 01/16 23:00</span>
+    <div class="news-item"><b>🇺🇸 CPI 數據發佈</b><span style="font-size:10px; color:#8b949e">01/13 (週二) 21:30</span></div>
+    <div class="news-item"><b>📉 初請失業金人數</b><span style="font-size:10px; color:#8b949e">01/15 (週四) 21:30</span></div>
+    <div class="news-item"><b>📊 密大消費者信心</b><span style="font-size:10px; color:#8b949e">01/16 (週五) 23:00</span></div>
 </div>
 
 <div class="container">
-    <div class="card">
-        <h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1.5%)</h2>
-        <div class="scroll"><table><thead><tr><th>幣種</th><th>幅度%</th><th>操作</th></tr></thead><tbody id="surge-list"></tbody></table></div>
-    </div>
-
-    <div class="card">
-        <h2 style="color:var(--strong)">🔥 高檔強勢</h2>
-        <div class="scroll"><table><thead><tr><th>幣種</th><th>24h%</th><th>操作</th></tr></thead><tbody id="strong-list"></tbody></table></div>
-    </div>
-
-    <div class="card">
-        <h2 style="color:var(--fall)">⚠️ 資費異常 (±0.05)</h2>
-        <div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>操作</th></tr></thead><tbody id="fund-list"></tbody></table></div>
-    </div>
-
-    <div class="card">
-        <h2 style="color:var(--twist)">🎯 麻花 / 吸金</h2>
-        <div class="scroll"><table><thead><tr><th>幣種</th><th>特徵</th><th>操作</th></tr></thead><tbody id="special-list"></tbody></table></div>
-    </div>
-
-    <div class="card">
-        <h2 style="color:#bc8cff">💎 潛力幣 (三缺一)</h2>
-        <div class="scroll"><table><thead><tr><th>幣種</th><th>滿足</th><th>缺失</th><th>布林</th></tr></thead><tbody id="potential-list"></tbody></table></div>
-    </div>
+    <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發(>=1.5%)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>幅度%</th><th>操作</th></tr></thead><tbody id="surge-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>24h%</th><th>操作</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:var(--fall)">⚠️ 資費異常(±0.05)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>操作</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:var(--twist)">🎯 麻花 / 吸金</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>特徵</th><th>操作</th></tr></thead><tbody id="special-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力幣 (三缺一)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>滿足</th><th>缺失</th><th>布林</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
 <script>
     let dataMap = {};
-    let btcPriceChange = 0;
-    
-    // 初始化連線 (全市場掃描邏輯)
-    // 實務上我們會從 Binance 獲取所有 USDT 永續合約清單
-    const targetSymbols = ['btcusdt', 'ethusdt', 'suiusdt', 'nearusdt', 'solusdt', 'bnbusdt', 'dogeusdt', 'linkusdt', 'avaxusdt', 'opusdt', 'arbusdt', 'aptusdt', 'arusdt', 'wifusdt', 'pepeusdt', 'fetusdt'];
+    let btcChange = 0;
+    let marketUp = 0;
+    let marketDown = 0;
 
-    const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${targetSymbols.map(s => `${s}@ticker`).join('/')}`);
+    // 直接連線幣安所有合約 Ticker 接口 (全市場監控)
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
 
     ws.onmessage = (e) => {
-        const d = JSON.parse(e.data).data;
-        const s = d.s.replace('USDT', '');
-        const p = parseFloat(d.c);
-        const p24 = parseFloat(d.P);
+        const tickers = JSON.parse(e.data);
+        marketUp = 0; marketDown = 0;
 
-        // 1. 頂部即時漲跌
-        if(s === 'BTC') {
-            document.getElementById('btc-live').innerText = `BTC: ${p24}%`;
-            btcPriceChange = p24;
-        }
-        if(s === 'ETH') document.getElementById('eth-live').innerText = `ETH: ${p24}%`;
+        tickers.forEach(d => {
+            if (!d.s.endsWith('USDT')) return;
+            const s = d.s.replace('USDT', '');
+            const p = parseFloat(d.c);
+            const p24 = parseFloat(d.P);
+            
+            if (p24 > 0) marketUp++; else marketDown++;
 
-        // 更新市場總計
-        updateMarketBreadth();
+            if (s === 'BTC') { btcChange = p24; document.getElementById('btc-live').innerText = `BTC: ${p24}%`; }
+            if (s === 'ETH') document.getElementById('eth-live').innerText = `ETH: ${p24}%`;
 
-        if (!dataMap[s]) dataMap[s] = { lastP: p, conc: 22, prevConc: 21, bw: 0.02, prevBw: 0.018 };
+            if (!dataMap[s]) dataMap[s] = { lastP: p, bw: 0.02, prevBw: 0.015 };
 
-        // 瞬間噴發邏輯
-        const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
-        if (instChange >= 1.5) {
-            renderRow('surge-list', `<td>${s}</td><td class="pass">+${instChange.toFixed(2)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>`);
-        }
+            // 1. 瞬間噴發
+            const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
+            if (instChange >= 1.5) {
+                renderRow('surge-list', `<td>${s}</td><td class="pass">+${instChange.toFixed(2)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>`);
+            }
 
-        // 高檔強勢 (24h > 5%)
-        if (p24 > 5.0 && !document.getElementById(`strong-${s}`)) {
-            renderRow('strong-list', `<td>${s}</td><td>${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>`, `strong-${s}`);
-        }
+            // 2. 高檔強勢 (24h 漲幅前列)
+            if (p24 > 6.0 && !document.getElementById(`strong-${s}`)) {
+                renderRow('strong-list', `<td>${s}</td><td>${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>`, `strong-${s}`);
+            }
 
-        // 資費異常邏輯 (±0.05 跳色)
-        // 這裡模擬從 API 獲取的資費數據
-        const mockFund = (s === 'SUI') ? -0.0512 : 0.008; 
-        if (Math.abs(mockFund) >= 0.05 && !document.getElementById(`fund-${s}`)) {
-            renderRow('fund-list', `<td>${s}</td><td class="funding-alert">${mockFund}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>`, `fund-${s}`);
-        }
+            // 3. 潛力幣 (3/4 邏輯)
+            checkPotential(s, p, p24, dataMap[s]);
 
-        // 潛力幣 (四選三)
-        checkPotential(s, p, p24, dataMap[s]);
+            dataMap[s].lastP = p;
+        });
 
-        dataMap[s].lastP = p;
+        // 更新頂部統計
+        document.getElementById('up-cnt').innerText = marketUp;
+        document.getElementById('down-cnt').innerText = marketDown;
     };
 
     function checkPotential(s, p, p24, cache) {
         const conds = [
             { lab: '趨勢', pass: p24 > 0 },
-            { lab: '籌碼', pass: cache.conc > cache.prevConc },
-            { lab: '強度', pass: (p24 - btcPriceChange) > 2.0 },
-            { lab: '布林', pass: cache.bw > cache.prevBw }
+            { lab: '強度', pass: (p24 - btcChange) > 2.0 },
+            { lab: '布林', pass: cache.bw > cache.prevBw },
+            { lab: '能量', pass: true } // 此處可對接 Volume
         ];
         const passed = conds.filter(c => c.pass);
-        const missing = conds.filter(c => !c.pass);
-
         if (passed.length >= 3) {
             const rowId = `pot-${s}`;
-            const missLab = missing.length > 0 ? `<span class="missing">缺:${missing[0].lab}</span>` : `<span class="pass">🚀 ALL</span>`;
-            const html = `<td>${s}</td><td>${passed.length}/4</td><td>${missLab}</td><td>${cache.bw < 0.025 ? '壓縮' : '開口'}</td>`;
-            let row = document.getElementById(rowId);
+            const missing = conds.find(c => !c.pass);
+            const html = `<td>${s}</td><td>${passed.length}/4</td><td class="missing">${missing ? '缺:'+missing.lab : 'ALL'}</td><td>${cache.bw < 0.02 ? '壓縮' : '開口'}</td>`;
+            const row = document.getElementById(rowId);
             if (row) row.innerHTML = html;
             else renderRow('potential-list', html, rowId);
         }
     }
 
+    // 資費獨立監控 (全市場資費判斷，±0.05 觸發)
+    setInterval(async () => {
+        try {
+            const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
+            const funds = await res.json();
+            funds.forEach(f => {
+                const s = f.symbol.replace('USDT', '');
+                const rate = (parseFloat(f.lastFundingRate) * 100).toFixed(4);
+                const rowId = `fund-${s}`;
+                if (Math.abs(rate) >= 0.05) {
+                    if (!document.getElementById(rowId)) {
+                        renderRow('fund-list', `<td>${s}</td><td class="funding-alert">${rate}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>`, rowId);
+                    }
+                } else if (document.getElementById(rowId)) {
+                    document.getElementById(rowId).remove();
+                }
+            });
+        } catch (e) {}
+    }, 10000);
+
     function renderRow(id, html, rid = '') {
         const b = document.getElementById(id);
         b.insertAdjacentHTML('afterbegin', `<tr ${rid ? `id="${rid}"` : ''}>${html}</tr>`);
-        if (b.children.length > 25) b.lastElementChild.remove();
+        if (b.children.length > 30) b.lastElementChild.remove();
     }
-
-    function updateMarketBreadth() {
-        // 模擬市場統計數據
-        document.getElementById('up-count').innerText = "142";
-        document.getElementById('down-count').innerText = "58";
-    }
-
-    ws.onopen = () => document.getElementById('btc-live').innerText = '連線成功';
 </script>
 </body>
 </html>
