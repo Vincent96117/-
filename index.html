@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V65 獵人佈局版 (平衡修正)</title>
+    <title>V67 獵人增強版 (資費直顯+RS評分)</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
@@ -11,14 +11,18 @@
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 4px 10px; border-bottom: 1px solid var(--border); height: 32px; }
         .btc-eth-status { display: flex; gap: 12px; font-weight: bold; font-size: 12px; }
         .refresh-btn { background: #1f6feb; color: white; border: none; padding: 2px 10px; cursor: pointer; border-radius: 3px; }
-        .container { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr 1.5fr; gap: 4px; height: calc(100vh - 85px); padding: 4px; box-sizing: border-box; }
+        .container { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr 1.6fr; gap: 4px; height: calc(100vh - 85px); padding: 4px; box-sizing: border-box; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; min-width: 0; }
         h2 { font-size: 0.8rem; padding: 8px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); }
         .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         td, th { padding: 6px 2px; border-bottom: 1px solid #21262d; text-align: center; white-space: nowrap; overflow: hidden; }
         .btn-del { background: #333; color: #888; border: none; padding: 1px 6px; cursor: pointer; border-radius: 2px; }
-        .funding-alert { background: #a6611a !important; color: white !important; font-weight: bold; }
+        .funding-tag { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-left: 2px; }
+        .funding-high { background: #a6611a; color: white; }
+        
+        @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514955; } 100% { background: transparent; } }
+        .pot-alert { animation: blink-red 0.5s infinite; border: 1px solid var(--fall) !important; }
     </style>
 </head>
 <body>
@@ -40,20 +44,50 @@
             市場狀態: <span id="market-trend">--</span> (上漲: <span id="up-cnt">--</span> | 下跌: <span id="down-cnt">--</span>)
         </div>
     </div>
-    <button class="refresh-btn" onclick="location.reload()">🔄 刷新重連</button>
+    <button class="refresh-btn" onclick="playBeep(1); location.reload()">🔄 開啟警報並刷新</button>
 </div>
 
 <div class="container">
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (佈局導向)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>起漲評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (RS相對強度)</h2><div class="scroll"><table><thead><tr><th style="width:35%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
 <script>
     let dataMap = {};
     let btcChange = 0;
+    let fundingMap = {};
     let lockedPotList = [];
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playBeep(times) {
+        for(let i=0; i<times; i++) {
+            setTimeout(() => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.type = 'sine'; osc.frequency.value = 880;
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            }, i * 200);
+        }
+    }
+
+    // 定期抓取全量資費
+    async function updateAllFunding() {
+        try {
+            const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
+            const data = await res.json();
+            data.forEach(f => {
+                const s = f.symbol.replace('USDT', '');
+                fundingMap[s] = parseFloat(f.lastFundingRate) * 100;
+            });
+            renderPotTable(); // 更新資費顯示
+        } catch(e) {}
+    }
+    setInterval(updateAllFunding, 10000);
+    updateAllFunding();
 
     const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
 
@@ -70,33 +104,35 @@
                 
                 p24 > 0 ? up++ : down++;
 
-                if (s === 'BTC') { btcChange = p24; document.getElementById('btc-live').innerText = `BTC: ${p} (${p24}%)`; }
+                if (s === 'BTC') { 
+                    btcChange = p24; 
+                    document.getElementById('btc-live').innerText = `BTC: ${p} (${p24}%)`; 
+                }
                 if (s === 'ETH') document.getElementById('eth-live').innerText = `ETH: ${p} (${p24}%)`;
 
                 if (!dataMap[s]) dataMap[s] = { lastP: p };
                 const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
 
-                if (instChange >= 1.0) renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`);
+                if (instChange >= 1.0) { renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`); playBeep(1); }
                 if (p24 > 8.0) updateStrong(s, p, p24);
 
-                // --- 潛力監控調整區 (V65 放寬版) ---
-                // 成交量底線回調至 800萬，震幅放寬至 6%
+                // 潛力監控核心 (加入 RS 相對強度評分)
                 if (vol > 8000000 && p24 >= 1.0 && p24 <= 4.0 && range <= 6.0) {
-                    const setupScore = Math.round((vol / 8000000 * 40) + ((6 - range) * 10));
-                    candidates.push({ s, rawScore: setupScore, status: '低位轉強' });
+                    // RS 評分：領先 BTC 的幅度
+                    const rsScore = (p24 - btcChange) > 0 ? (p24 - btcChange) * 20 : 0;
+                    const baseScore = (vol / 8000000 * 30) + ((6 - range) * 10);
+                    const finalScore = Math.min(100, Math.round(baseScore + rsScore));
+                    
+                    candidates.push({ s, rawScore: finalScore, status: (p24 > btcChange ? '領先大盤' : '橫盤轉強') });
                 }
-                // ------------------------------
-
                 dataMap[s].lastP = p;
             }
         });
 
         const trendEl = document.getElementById('market-trend');
-        if (up > down) { trendEl.innerText = "目前上漲較多"; trendEl.style.color = "var(--surge)"; }
-        else if (down > up) { trendEl.innerText = "目前下跌較多"; trendEl.style.color = "var(--fall)"; }
-        else { trendEl.innerText = "多空持平"; trendEl.style.color = "#eee"; }
-        document.getElementById('up-cnt').innerText = up;
-        document.getElementById('down-cnt').innerText = down;
+        trendEl.innerText = up > down ? "目前上漲較多" : "目前下跌較多";
+        trendEl.style.color = up > down ? "var(--surge)" : "var(--fall)";
+        document.getElementById('up-cnt').innerText = up; document.getElementById('down-cnt').innerText = down;
 
         updatePotential(candidates);
     };
@@ -110,7 +146,7 @@
     }
 
     function updatePotential(candidates) {
-        if (lockedPotList.length >= 10) { refreshScores(); return; } 
+        if (lockedPotList.length >= 10) { refreshScores(); return; }
         candidates.sort((a, b) => b.rawScore - a.rawScore);
         candidates.forEach(c => {
             if (lockedPotList.length < 10 && !lockedPotList.find(i => i.s === c.s)) {
@@ -123,41 +159,34 @@
     function renderPotTable() {
         const list = document.getElementById('potential-list');
         list.innerHTML = '';
-        const maxRaw = lockedPotList.length > 0 ? Math.max(...lockedPotList.map(i => i.rawScore)) : 1;
         lockedPotList.forEach(item => {
-            const scaled = Math.round((item.rawScore / maxRaw) * 100);
-            list.insertAdjacentHTML('beforeend', `<tr id="pot-${item.s}"><td>${item.s}</td><td style="color:var(--alert);font-weight:bold">${scaled}</td><td>${item.status}</td><td><button class="btn-del" onclick="removePot('${item.s}')">✕</button></td></tr>`);
+            const fRate = fundingMap[item.s] || 0;
+            const fClass = Math.abs(fRate) >= 0.05 ? 'funding-high' : '';
+            const alertClass = item.rawScore >= 80 ? 'pot-alert' : '';
+            if (item.rawScore >= 80) playBeep(2);
+
+            list.insertAdjacentHTML('beforeend', `
+                <tr id="pot-${item.s}" class="${alertClass}">
+                    <td>${item.s} <span class="funding-tag ${fClass}">${fRate.toFixed(3)}%</span></td>
+                    <td style="color:var(--alert);font-weight:bold">${item.rawScore}</td>
+                    <td>${item.status}</td>
+                    <td><button class="btn-del" onclick="removePot('${item.s}')">✕</button></td>
+                </tr>`);
         });
     }
 
     function refreshScores() {
-        const maxRaw = Math.max(...lockedPotList.map(i => i.rawScore), 1);
         lockedPotList.forEach(item => {
             const row = document.getElementById(`pot-${item.s}`);
-            if (row) row.cells[1].innerText = Math.round((item.rawScore / maxRaw) * 100);
+            if (row) {
+                if (item.rawScore >= 80) { row.classList.add('pot-alert'); } 
+                else { row.classList.remove('pot-alert'); }
+                row.cells[1].innerText = item.rawScore;
+            }
         });
     }
 
-    function removePot(s) {
-        lockedPotList = lockedPotList.filter(i => i.s !== s);
-        renderPotTable();
-    }
-
-    setInterval(async () => {
-        try {
-            const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
-            const funds = await res.json();
-            const list = document.getElementById('fund-list');
-            const sorted = funds
-                .map(f => ({ s: f.symbol.replace('USDT', ''), r: parseFloat(f.lastFundingRate) * 100 }))
-                .filter(f => Math.abs(f.r) >= 0.05)
-                .sort((a, b) => Math.abs(b.r) - Math.abs(a.r)).slice(0, 5);
-            list.innerHTML = '';
-            sorted.forEach(f => {
-                list.insertAdjacentHTML('beforeend', `<tr><td>${f.s}</td><td class="funding-alert">${f.r.toFixed(4)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
-            });
-        } catch (e) {}
-    }, 5000);
+    function removePot(s) { lockedPotList = lockedPotList.filter(i => i.s !== s); renderPotTable(); }
 
     function renderRow(id, html) {
         const b = document.getElementById(id);
