@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V64 獵人長效佈局版</title>
+    <title>V65 獵人佈局版 (平衡修正)</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
@@ -47,7 +47,7 @@
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (長效量能佈局)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>起漲評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (佈局導向)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>起漲評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
 <script>
@@ -76,21 +76,16 @@
                 if (!dataMap[s]) dataMap[s] = { lastP: p };
                 const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
 
-                // 瞬間噴發
                 if (instChange >= 1.0) renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`);
-                
-                // 高檔強勢
                 if (p24 > 8.0) updateStrong(s, p, p24);
 
-                // 潛力監控 (V64 長效量能邏輯)
-                // 加入長週期權重：vol (24h總量) 對比 range (橫盤度)
-                // 模擬長週期量能覺醒：量能必須穩定高於基礎門檻，且價格處於剛突破(1-4%)的橫盤狀態
-                if (vol > 15000000 && p24 >= 1.0 && p24 <= 4.0 && range <= 5.0) {
-                    // 分數計算：成交量大 + 震幅極窄(越窄分越高)
-                    const volScore = (vol / 15000000) * 50;
-                    const squeezeScore = (5 - range) * 10;
-                    candidates.push({ s, rawScore: (volScore + squeezeScore), status: '趨勢轉強' });
+                // --- 潛力監控調整區 (V65 放寬版) ---
+                // 成交量底線回調至 800萬，震幅放寬至 6%
+                if (vol > 8000000 && p24 >= 1.0 && p24 <= 4.0 && range <= 6.0) {
+                    const setupScore = Math.round((vol / 8000000 * 40) + ((6 - range) * 10));
+                    candidates.push({ s, rawScore: setupScore, status: '低位轉強' });
                 }
+                // ------------------------------
 
                 dataMap[s].lastP = p;
             }
