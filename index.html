@@ -2,19 +2,15 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V60 獵人全功能回歸版</title>
+    <title>V61 獵人直覺強化版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
-        
-        /* 消息看板樣式 */
         .news-banner { background: #1a1a1a; padding: 6px 15px; border: 1px solid #444; border-radius: 4px; margin: 4px; font-size: 12px; display: flex; gap: 20px; color: #fff; }
         .news-item b { color: var(--alert); }
-
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 4px 10px; border-bottom: 1px solid var(--border); height: 32px; }
         .btc-eth-status { display: flex; gap: 12px; font-weight: bold; font-size: 12px; }
         .refresh-btn { background: #1f6feb; color: white; border: none; padding: 2px 10px; cursor: pointer; border-radius: 3px; }
-        
         .container { display: grid; grid-template-columns: 1fr 1.3fr 1fr 1.4fr; gap: 4px; height: calc(100vh - 85px); padding: 4px; box-sizing: border-box; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; min-width: 0; }
         h2 { font-size: 0.8rem; padding: 8px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); }
@@ -23,6 +19,7 @@
         td, th { padding: 6px 2px; border-bottom: 1px solid #21262d; text-align: center; white-space: nowrap; overflow: hidden; }
         .btn-del { background: #333; color: #888; border: none; padding: 1px 6px; cursor: pointer; border-radius: 2px; }
         .funding-alert { background: #a6611a !important; color: white !important; font-weight: bold; }
+        #market-trend { font-weight: bold; margin-left: 5px; }
     </style>
 </head>
 <body>
@@ -41,14 +38,14 @@
             <span id="eth-live" style="color:#627eea">ETH: -- (--)</span>
         </div>
         <div class="market-breadth" style="margin-left:15px; border-left: 1px solid #444; padding-left: 10px;">
-            市場寬度 | 上漲: <span id="up-cnt" style="color:var(--surge)">--</span> | 下跌: <span id="down-cnt" style="color:var(--fall)">--</span>
+            市場狀態: <span id="market-trend">--</span> (上漲: <span id="up-cnt">--</span> | 下跌: <span id="down-cnt">--</span>)
         </div>
     </div>
     <button class="refresh-btn" onclick="location.reload()">🔄 刷新重連</button>
 </div>
 
 <div class="container">
-    <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (100分制)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
@@ -80,15 +77,28 @@
                 if (!dataMap[s]) dataMap[s] = { lastP: p };
                 const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
 
-                if (instChange >= 1.5) renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`);
+                // 修改點：調回 1% 門檻
+                if (instChange >= 1.0) renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`);
+                
                 if (p24 > 8.0) updateStrong(s, p, p24);
-
                 const rawScore = (Math.abs(p24 - btcChange) * 40) + (Math.abs(instChange) * 60);
                 if (rawScore > 100) candidates.push({ s, rawScore, status: (p24 > btcChange) ? '強抗跌' : '異動中' });
                 dataMap[s].lastP = p;
             }
         });
 
+        // 修改點：市場寬度文字判斷
+        const trendEl = document.getElementById('market-trend');
+        if (up > down) {
+            trendEl.innerText = "目前上漲較多";
+            trendEl.style.color = "var(--surge)";
+        } else if (down > up) {
+            trendEl.innerText = "目前下跌較多";
+            trendEl.style.color = "var(--fall)";
+        } else {
+            trendEl.innerText = "多空持平";
+            trendEl.style.color = "#eee";
+        }
         document.getElementById('up-cnt').innerText = up;
         document.getElementById('down-cnt').innerText = down;
         updatePotential(candidates);
