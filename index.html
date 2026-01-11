@@ -2,26 +2,23 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V88 獵人正宗回歸版</title>
+    <title>V88.2 獵人全量啟動版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
-        
         .top-calendar { height: 75px; background: #000; border-bottom: 2px solid #444; overflow: hidden; display: flex; flex-direction: column; }
         .cal-header { background: #161b22; padding: 3px 10px; color: #888; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
         .cal-scroll { flex: 1; overflow-x: auto; display: flex; align-items: center; padding: 0 10px; gap: 20px; white-space: nowrap; }
         .cal-item { display: flex; flex-direction: column; border-left: 2px solid var(--strong); padding-left: 8px; }
         .cal-time { color: #888; font-size: 10px; }
         .cal-event { color: #fff; font-weight: bold; font-size: 11px; }
-
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #161b22; padding: 2px 12px; height: 30px; border-bottom: 1px solid var(--border); }
         .container { display: grid; grid-template-columns: 0.9fr 0.9fr 1fr 1.6fr; gap: 4px; flex: 1; padding: 4px; box-sizing: border-box; overflow: hidden; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
         h2 { font-size: 0.8rem; padding: 5px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); text-align: center; }
         .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        td { padding: 5px 2px; border-bottom: 1px solid #21262d; text-align: center; }
-        
+        td { padding: 4px 2px; border-bottom: 1px solid #21262d; text-align: center; }
         .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
         .funding-tag { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-left: 2px; }
         .split-line { height: 2px; background: #444; }
@@ -32,16 +29,17 @@
 <body>
 
 <div class="top-calendar">
-    <div class="cal-header"><span>📅 USD 高影響經濟日曆</span><span id="cal-status" style="color:var(--surge)">連線中</span></div>
+    <div class="cal-header"><span>📅 USD 經濟日曆 (High Impact)</span><span id="cal-status">連線中</span></div>
     <div class="cal-scroll" id="calendar-content"></div>
 </div>
 
 <div class="header-main">
     <div style="font-weight:bold; font-size:12px;">
-        <span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | <span style="color:#627eea">ETH: <span id="eth-live">--</span></span>
+        <span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | 
+        <span style="color:#627eea">ETH: <span id="eth-live">--</span></span>
     </div>
-    <div style="color:var(--strong); font-weight:bold;">V88 HUNTER | 正宗邏輯回歸</div>
-    <button onclick="location.reload()" style="cursor:pointer; font-size:10px;">🔄 系統重置</button>
+    <div style="color:var(--strong); font-weight:bold;">V88.2 HUNTER | 20分全量觸發</div>
+    <button onclick="location.reload()" style="cursor:pointer; font-size:10px;">🔄 系統重啟</button>
 </div>
 
 <div class="container">
@@ -50,10 +48,10 @@
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資金費率</h2><div class="scroll"><table><tbody id="fund-list"></tbody></table></div></div>
     
     <div class="card">
-        <h2 style="color:#bc8cff">💎 舊版 (正宗 60/80)</h2>
+        <h2 style="color:#bc8cff">💎 舊版監控 (20分起)</h2>
         <div style="height: 48%;" class="scroll"><table><tbody id="pot-old-list"></tbody></table></div>
         <div class="split-line"></div>
-        <h2 style="color:#58a6ff">🌀 新版 (3日均量對比)</h2>
+        <h2 style="color:#58a6ff">🌀 新版監控 (20分起)</h2>
         <div style="height: 48%;" class="scroll"><table><tbody id="pot-new-list"></tbody></table></div>
     </div>
 </div>
@@ -72,8 +70,8 @@
                 const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
                 container.insertAdjacentHTML('beforeend', `<div class="cal-item"><div class="cal-time">${timeStr}</div><div class="cal-event">${e.title}</div></div>`);
             });
-            document.getElementById('cal-status').innerText = '同步完成';
-        } catch (e) { document.getElementById('cal-status').innerText = '日曆暫停'; }
+            document.getElementById('cal-status').innerText = 'OK';
+        } catch (e) { document.getElementById('cal-status').innerText = 'Error'; }
     }
 
     async function getBaseVolume(symbol) {
@@ -95,7 +93,7 @@
             });
             data.filter(f => Math.abs(parseFloat(f.lastFundingRate)*100) >= 0.05)
                 .sort((a,b) => Math.abs(parseFloat(b.lastFundingRate))-Math.abs(parseFloat(a.lastFundingRate)))
-                .slice(0,15).forEach(f => {
+                .slice(0,18).forEach(f => {
                     const r = parseFloat(f.lastFundingRate)*100;
                     list.insertAdjacentHTML('beforeend', `<tr><td>${f.symbol.replace('USDT','')}</td><td class="funding-high">${r.toFixed(4)}%</td></tr>`);
                 });
@@ -115,15 +113,15 @@
                     
                     if(!dataMap[s]) { dataMap[s] = {lp:p, avg4hVol: 0}; dataMap[s].avg4hVol = await getBaseVolume(s); }
 
-                    // 🔥 高檔強勢校正：嚴格 8% 門檻 + 即時更新
+                    // 高檔強勢 (8%)
                     const sl = document.getElementById('strong-list');
-                    let existingRow = [...sl.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
+                    let er = [...sl.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
                     if (p24 > 8.0) {
-                        if (!existingRow) sl.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td style="color:var(--surge)">${p24}%</td></tr>`);
-                        else existingRow.cells[1].innerText = `${p24}%`;
-                    } else if (existingRow) { existingRow.remove(); }
+                        if (!er) sl.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td style="color:var(--surge)">${p24}%</td></tr>`);
+                        else er.cells[1].innerText = `${p24}%`;
+                    } else if (er) er.remove();
 
-                    // 🚀 瞬間噴發
+                    // 瞬間噴發 (1.2%)
                     const inst = ((p-dataMap[s].lp)/dataMap[s].lp)*100;
                     if(inst>=1.2) {
                         const b = document.getElementById('surge-list');
@@ -131,23 +129,21 @@
                         if(b.children.length>15) b.lastElementChild.remove();
                     }
 
-                    // 💎 潛力邏輯：回歸 V84.1 正宗算法
+                    // 核心評分邏輯 (門檻下修至 20)
                     if(p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
                         const rsS = (p24 - btcChange) > 0 ? Math.min(45, (p24 - btcChange) * 11) : 0;
                         const sqS = Math.max(0, Math.min(30, (6.5 - range) * 4.6));
 
-                        // 舊版 (正宗絕對成交量感應)
-                        if(vol > 8000000) {
-                            const volOldS = Math.min(25, (vol/10000000)*5); 
-                            const scoreO = Math.min(100, Math.round(rsS + sqS + volOldS + 5)); // +5 補償熱門度
-                            if(scoreO >= 60) updateList(potOld, {s, score:scoreO}, 'pot-old-list');
-                        }
+                        // 💎 舊版評分
+                        const volOldS = Math.min(25, (vol/10000000)*5); 
+                        const scoreO = Math.min(100, Math.round(rsS + sqS + volOldS + 5));
+                        if(scoreO >= 20) updateList(potOld, {s, score:scoreO}, 'pot-old-list');
 
-                        // 新版 (相對均量對比)
+                        // 🌀 新版評分
                         const volRatio = (vol / 6) / dataMap[s].avg4hVol;
                         const volNewS = Math.min(25, (volRatio / 2) * 15);
                         const scoreN = Math.min(100, Math.round(rsS + sqS + volNewS));
-                        if(scoreN >= 60) updateList(potNew, {s, score:scoreN}, 'pot-new-list');
+                        if(scoreN >= 20) updateList(potNew, {s, score:scoreN}, 'pot-new-list');
                     }
                     dataMap[s].lp=p;
                 }
@@ -157,7 +153,10 @@
 
     function updateList(list, c, eid) {
         let item = list.find(i=>i.s===c.s);
-        if(!item && list.length < 10) { item = c; list.push(item); }
+        if(!item) {
+            if(list.length < 18) { item = c; list.push(item); }
+            else if(c.score > list[list.length-1].score) { list.pop(); item = c; list.push(item); }
+        }
         if(item) {
             item.score = c.score;
             if(item.score >= 80 && !pushed80.has(item.s + eid)) {
