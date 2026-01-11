@@ -14,20 +14,16 @@
         .stat-item { display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
         .stat-label { color: #848e9c; font-weight: bold; }
         .stat-value { font-weight: 800; font-family: monospace; }
-        
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         .column { background: #181a20; padding: 12px; border-radius: 10px; border: 1px solid #2b3139; min-height: 750px; display: flex; flex-direction: column; }
         .col-title { color: #f0b90b; font-size: 15px; font-weight: bold; margin-bottom: 8px; border-left: 4px solid #f0b90b; padding-left: 8px; }
-        
         table { width: 100%; border-collapse: collapse; }
         td { padding: 7px 4px; border-bottom: 1px solid #2b3139; font-size: 12px; }
         .up { color: #02c076; } .down { color: #f84960; }
         .symbol { color: #f0b90b; font-weight: bold; }
-        .del-btn { color: #f84960; cursor: pointer; border: 1px solid #f84960; border-radius: 3px; padding: 0 4px; font-size: 12px; margin-left:5px; transition: 0.2s; }
-        .del-btn:hover { background: #f84960; color: white; }
+        .del-btn { color: #f84960; cursor: pointer; border: 1px solid #f84960; border-radius: 3px; padding: 0 4px; font-size: 12px; margin-left:5px; }
         .breakout { background: rgba(58, 110, 255, 0.25) !important; }
         .tag-fire { background: #3a6eff; color: white; padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; }
-        
         .watch-area { margin-top: 20px; padding-top: 15px; border-top: 2px dashed #2b3139; }
         .manual-input-area { display: flex; gap: 5px; margin-top: 10px; }
         #manualSymbol { background: #0b0e11; border: 1px solid #474d57; color: white; border-radius: 3px; padding: 5px; flex: 1; font-size: 12px; }
@@ -40,7 +36,7 @@
         <div class="stat-item"><span class="stat-label">BTC:</span><span id="btcPrice" class="stat-value">--</span> <span id="btcChg">--</span></div>
         <div class="stat-item"><span class="stat-label">ETH:</span><span id="ethPrice" class="stat-value">--</span> <span id="ethChg">--</span></div>
         <div class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;"><span class="stat-label">漲/跌:</span><span id="upCount" class="up">0</span>/<span id="downCount" class="down">0</span></div>
-        <div id="volTop3" class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;"><span class="stat-label">🔥 吸金王:</span> <span id="top3Content">--</span></div>
+        <div id="volTop3" class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;"><span class="stat-label">🔥 吸金王:</span> <span id="top3Content">計算中...</span></div>
         <div id="riskTag" style="margin-left:auto; color:#fff; background:#f84960; padding:2px 8px; border-radius:4px; font-weight:bold; display:none; animation: flash 0.8s infinite;">⚠️ 插針警告</div>
         <div id="timer" style="margin-left: auto; color:#848e9c; font-size: 11px;">5s</div>
     </div>
@@ -51,7 +47,6 @@
         <div class="column">
             <div class="col-title">🔥 高檔強勢 (撐住)</div>
             <div style="max-height: 350px; overflow-y: auto;"><table><tbody id="trendBody"></tbody></table></div>
-            
             <div class="watch-area">
                 <div class="col-title" style="border-left-color: #3a6eff;">📌 觀察清單 (±1% 報警)</div>
                 <table><tbody id="userWatchBody"></tbody></table>
@@ -64,16 +59,13 @@
         
         <div class="column">
             <div class="col-title">📊 資費異常榜 (|±0.05%|)</div>
-            <table style="background:#0b0e11; margin-bottom:15px; border-radius:4px;">
-                <tbody id="fundingBody"></tbody>
-            </table>
+            <table style="background:#0b0e11; margin-bottom:15px; border-radius:4px;"><tbody id="fundingBody"></tbody></table>
             <div class="col-title">📈 盤整量增 (2H)</div>
             <table><tbody id="sidewaysBody"></tbody></table>
         </div>
         
         <div class="column">
             <div class="col-title">💎 低位轉折清單 (上限15)</div>
-            <div style="font-size:10px; color:#848e9c; margin-bottom:10px;">MA 7/25/99 擰麻花</div>
             <table><tbody id="pivotBody"></tbody></table>
         </div>
     </div>
@@ -107,6 +99,18 @@
                 let trendRes = [], awakeRes = [], upC = 0, downC = 0;
                 let playBurst = false, playWatchUp = false, playWatchDown = false;
                 let now = new Date();
+
+                // --- 補回吸金王邏輯 ---
+                const excludeSymbols = ['BTCUSDT', 'ETHUSDT', 'USDCUSDT', 'USDTUSDT', 'BUSDUSDT', 'FDUSDUSDT'];
+                let altsTop3 = tickers
+                    .filter(t => t.symbol.endsWith('USDT') && !excludeSymbols.includes(t.symbol))
+                    .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+                    .slice(0, 3);
+                
+                document.getElementById('top3Content').innerHTML = altsTop3.map((t, i) => 
+                    `<span>${i+1}.${t.symbol.replace('USDT','')} <small style="color:#848e9c">(${(parseFloat(t.quoteVolume)/1000000000).toFixed(1)}B)</small></span>`
+                ).join(' | ');
+                // --------------------
 
                 tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_')).forEach(t => {
                     const symbol = t.symbol.replace('USDT', '');
@@ -164,18 +168,12 @@
 
         function renderAll(trendRes, awakeRes) {
             document.getElementById('instantBody').innerHTML = burstHistory.map(r => `<tr><td class="symbol"><small style="color:#848e9c">${r.time}</small> ${r.s}</td><td class="up" align="right">+${r.c.toFixed(2)}%</td></tr>`).join('');
-            
-            document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,10).map(r => `
-                <tr><td class="symbol">${r.s} <span class="del-btn" onclick="trendBlacklist.add('${r.s}'); run();">×</span></td>
-                <td class="up" align="right">+${r.c.toFixed(1)}%</td></tr>`).join('');
-            
+            document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,10).map(r => `<tr><td class="symbol">${r.s} <span class="del-btn" onclick="trendBlacklist.add('${r.s}'); run();">×</span></td><td class="up" align="right">+${r.c.toFixed(1)}%</td></tr>`).join('');
             let watchHTML = '';
             userWatchList.forEach((val, key) => {
-                watchHTML += `<tr><td class="symbol">${key} <span class="del-btn" onclick="userWatchList.delete('${key}'); renderAll([],[]);">×</span></td>
-                <td>${val.p.toLocaleString()}</td><td class="${val.c>=0?'up':'down'}" align="right">${val.c.toFixed(1)}%</td></tr>`;
+                watchHTML += `<tr><td class="symbol">${key} <span class="del-btn" onclick="userWatchList.delete('${key}'); renderAll([],[]);">×</span></td><td>${val.p.toLocaleString()}</td><td class="${val.c>=0?'up':'down'}" align="right">${val.c.toFixed(1)}%</td></tr>`;
             });
             document.getElementById('userWatchBody').innerHTML = watchHTML;
-
             document.getElementById('sidewaysBody').innerHTML = awakeRes.sort((a,b)=>b.b-a.b).slice(0,8).map(r => `<tr><td class="symbol">${r.s}</td><td align="right">${r.b.toFixed(1)}x 量</td></tr>`).join('');
             document.getElementById('pivotBody').innerHTML = manualPivotList.map(r => `<tr class="${r.breakout ? 'breakout' : ''}"><td class="symbol">${r.s} <span class="del-btn" onclick="blacklist.add('${r.s}'); manualPivotList=manualPivotList.filter(i=>i.s!=='${r.s}'); renderAll([],[]);">×</span></td><td align="right">${r.breakout ? '<span class="tag-fire">🔥 突破</span>' : '壓縮'}</td></tr>`).join('');
         }
