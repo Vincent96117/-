@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V89 獵人雙重驗證版</title>
+    <title>V90 獵人推播修復版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; --double: #f2a900; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -26,12 +26,14 @@
         .split-line { height: 2px; background: #444; }
         @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514933; } 100% { background: transparent; } }
         .pot-alert { animation: blink-red 1s infinite; border: 1px solid var(--fall) !important; }
+        .btn-test { background: #333; color: #fff; border: 1px solid #555; font-size: 10px; cursor: pointer; padding: 2px 5px; border-radius: 3px; }
+        .btn-test:hover { background: #444; }
     </style>
 </head>
 <body>
 
 <div class="top-calendar">
-    <div class="cal-header"><span>📅 USD 經濟日曆 (High)</span><span id="cal-status">同步中</span></div>
+    <div class="cal-header"><span>📅 USD 重要日曆</span><span id="cal-status">同步中</span></div>
     <div class="cal-scroll" id="calendar-content"></div>
 </div>
 
@@ -39,8 +41,10 @@
     <div style="font-weight:bold; font-size:12px;">
         <span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | <span style="color:#627eea">ETH: <span id="eth-live">--</span></span>
     </div>
-    <div style="color:var(--double); font-weight:bold;">V89 HUNTER | 雙重驗證整合版</div>
-    <button onclick="location.reload()" style="cursor:pointer; font-size:10px;">🔄 重整</button>
+    <div>
+        <button class="btn-test" onclick="testPush()">🔔 測試推播</button>
+        <button onclick="location.reload()" style="cursor:pointer; font-size:10px;">🔄 重整</button>
+    </div>
 </div>
 
 <div class="container">
@@ -49,17 +53,28 @@
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資金費率</h2><div class="scroll"><table><tbody id="fund-list"></tbody></table></div></div>
     
     <div class="card">
-        <h2 style="color:#bc8cff">💎 舊版監控 (含雙重驗證)</h2>
-        <div style="height: 48%;" class="scroll"><table><tbody id="pot-old-list"></tbody></table></div>
+        <h2 style="color:#bc8cff">💎 舊版 / 雙重驗證</h2>
+        <div style="height: 48%;" class="scroll"><table id="table-old"></table></div>
         <div class="split-line"></div>
-        <h2 style="color:#58a6ff">🌀 新版監控 (純爆發)</h2>
-        <div style="height: 48%;" class="scroll"><table><tbody id="pot-new-list"></tbody></table></div>
+        <h2 style="color:#58a6ff">🌀 新版爆發監控</h2>
+        <div style="height: 48%;" class="scroll"><table id="table-new"></table></div>
     </div>
 </div>
 
 <script>
-    const MY_BARK_KEY = 'KQP2fTbTfPp4HnhQSYNaxH';
-    let btcChange = 0, fundingMap = {}, dataMap = {}, potOld = [], potNew = [], pushed80 = new Set();
+    const MY_BARK_KEY = 'KQP2fTbTfPp4HnhQSYNaxH'; // 你的 Key
+    let btcChange = 0, fundingMap = {}, dataMap = {}, potOld = [], potNew = [], pushedTokens = new Set();
+
+    // 推播核心函數
+    function sendPush(title, content) {
+        const url = `https://api.day.app/${MY_BARK_KEY}/${encodeURIComponent(title)}/${encodeURIComponent(content)}?group=Hunter&sound=calypso`;
+        fetch(url, { mode: 'no-cors' }).catch(e => console.log('Push sent'));
+    }
+
+    function testPush() {
+        sendPush("系統測試", "獵人系統連線正常！🎯");
+        alert("推播請求已發送，請檢查手機 Bark。");
+    }
 
     async function fetchCalendar() {
         try {
@@ -96,7 +111,7 @@
                 .sort((a,b) => Math.abs(parseFloat(b.lastFundingRate))-Math.abs(parseFloat(a.lastFundingRate)))
                 .slice(0,18).forEach(f => {
                     const r = parseFloat(f.lastFundingRate)*100;
-                    list.insertAdjacentHTML('beforeend', `<tr><td>${f.symbol.replace('USDT','')}</td><td class="${Math.abs(r)>=0.05?'funding-high':''}">${r.toFixed(4)}%</td></tr>`);
+                    list.insertAdjacentHTML('beforeend', `<tr><td>${f.symbol.replace('USDT','')}</td><td class="funding-high">${r.toFixed(4)}%</td></tr>`);
                 });
         } catch(e) {}
     }
@@ -112,7 +127,7 @@
                     if(s==='ETH') document.getElementById('eth-live').innerText=`${p} (${p24}%)`;
                     if(!dataMap[s]) { dataMap[s] = {lp:p, avg4hVol: 0}; dataMap[s].avg4hVol = await getBaseVolume(s); }
 
-                    // 高檔與瞬間噴發 (略過)
+                    // 高檔強勢 (8%)
                     const sl = document.getElementById('strong-list');
                     let er = [...sl.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
                     if (p24 > 8.0) {
@@ -120,6 +135,7 @@
                         else er.cells[1].innerText = `${p24}%`;
                     } else if (er) er.remove();
 
+                    // 瞬間噴發
                     const inst = ((p-dataMap[s].lp)/dataMap[s].lp)*100;
                     if(inst>=1.2) {
                         const b = document.getElementById('surge-list');
@@ -127,27 +143,23 @@
                         if(b.children.length>12) b.lastElementChild.remove();
                     }
 
-                    // 核心評分邏輯
+                    // 20分全量邏輯
                     if(p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
                         const rsS = (p24 - btcChange) > 0 ? Math.min(45, (p24 - btcChange) * 11) : 0;
                         const sqS = Math.max(0, Math.min(30, (6.5 - range) * 4.6));
                         const volRatio = (vol / 6) / dataMap[s].avg4hVol;
-                        
-                        // 狀態描述文字
                         const desc = `${p24>btcChange?'超大盤':'隨盤'} | 縮${range.toFixed(1)}% | ${volRatio.toFixed(1)}x量`;
 
                         const scoreO = (vol > 8000000) ? Math.min(100, Math.round(rsS + sqS + Math.min(25, (vol/10000000)*5) + 5)) : 0;
                         const scoreN = Math.min(100, Math.round(rsS + sqS + Math.min(25, (volRatio / 2) * 15)));
 
                         if(scoreO >= 20 && scoreN >= 20) {
-                            // 雙重驗證：存入舊版列表並標記
-                            updateList(potOld, {s, score:scoreO, desc, double:true}, 'pot-old-list');
-                            potNew = potNew.filter(x => x.s !== s); // 從新版中移除
+                            updateLogic(potOld, {s, score:scoreO, desc, double:true}, 'old');
+                            potNew = potNew.filter(x => x.s !== s);
                         } else if(scoreO >= 20) {
-                            updateList(potOld, {s, score:scoreO, desc, double:false}, 'pot-old-list');
+                            updateLogic(potOld, {s, score:scoreO, desc, double:false}, 'old');
                         } else if(scoreN >= 20) {
-                            // 檢查是否已在舊版（雙重）中，不在才加入新版
-                            if(!potOld.find(x => x.s === s)) updateList(potNew, {s, score:scoreN, desc, double:false}, 'pot-new-list');
+                            if(!potOld.find(x => x.s === s)) updateLogic(potNew, {s, score:scoreN, desc, double:false}, 'new');
                         }
                     }
                     dataMap[s].lp=p;
@@ -156,7 +168,7 @@
         };
     }
 
-    function updateList(list, c, eid) {
+    function updateLogic(list, c, type) {
         let item = list.find(i=>i.s===c.s);
         if(!item) {
             if(list.length < 15) { item = c; list.push(item); }
@@ -164,16 +176,18 @@
         }
         if(item) {
             item.score = c.score; item.desc = c.desc; item.double = c.double;
-            if(item.score >= 80 && !pushed80.has(item.s + eid)) {
-                fetch(`https://api.day.app/${MY_BARK_KEY}/🎯${item.double?'[雙]':''}${item.s}-${item.score}分?group=Hunter`);
-                pushed80.add(item.s + eid);
+            // 推播邏輯
+            if(item.score >= 80 && !pushedTokens.has(item.s)) {
+                sendPush(`${item.double?'[雙重驗證]':'潛力幣'} ${item.s}`, `得分: ${item.score} | ${item.desc}`);
+                pushedTokens.add(item.s);
+                setTimeout(() => pushedTokens.delete(item.s), 3600000); // 一小時後允許再次針對同幣種推播
             }
         }
-        render(list, eid);
+        renderTable(list, type);
     }
 
-    function render(list, eid) {
-        const dom = document.getElementById(eid); dom.innerHTML = '';
+    function renderTable(list, type) {
+        const dom = document.getElementById('table-' + type); dom.innerHTML = '';
         list.sort((a,b)=>b.score-a.score).forEach(it => {
             const fr = (fundingMap[it.s] || 0).toFixed(3);
             const frClass = Math.abs(fr) >= 0.05 ? 'funding-high' : '';
@@ -183,8 +197,8 @@
                     <span class="funding-tag ${frClass}">${fr}%</span>
                     <span class="status-tag">${it.desc}</span>
                 </td>
-                <td style="color:var(--alert);font-weight:bold;font-size:14px;">${it.score}</td>
-                <td><button style="border:none;background:transparent;color:#666;cursor:pointer" onclick="potOld=potOld.filter(x=>x.s!=='${it.s}'); potNew=potNew.filter(x=>x.s!=='${it.s}'); render(potOld,'pot-old-list'); render(potNew,'pot-new-list');">✕</button></td>
+                <td style="color:var(--alert);font-weight:bold;font-size:13px;">${it.score}</td>
+                <td><button style="border:none;background:transparent;color:#666;cursor:pointer" onclick="potOld=potOld.filter(x=>x.s!=='${it.s}'); potNew=potNew.filter(x=>x.s!=='${it.s}'); renderTable(potOld,'old'); renderTable(potNew,'new');">✕</button></td>
             </tr>`);
         });
     }
