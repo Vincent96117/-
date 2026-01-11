@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V62 獵人佈局版</title>
+    <title>V64 獵人長效佈局版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
@@ -11,7 +11,7 @@
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 4px 10px; border-bottom: 1px solid var(--border); height: 32px; }
         .btc-eth-status { display: flex; gap: 12px; font-weight: bold; font-size: 12px; }
         .refresh-btn { background: #1f6feb; color: white; border: none; padding: 2px 10px; cursor: pointer; border-radius: 3px; }
-        .container { display: grid; grid-template-columns: 1fr 1.3fr 1fr 1.4fr; gap: 4px; height: calc(100vh - 85px); padding: 4px; box-sizing: border-box; }
+        .container { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr 1.5fr; gap: 4px; height: calc(100vh - 85px); padding: 4px; box-sizing: border-box; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; min-width: 0; }
         h2 { font-size: 0.8rem; padding: 8px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); }
         .scroll { flex: 1; overflow-y: auto; }
@@ -19,13 +19,12 @@
         td, th { padding: 6px 2px; border-bottom: 1px solid #21262d; text-align: center; white-space: nowrap; overflow: hidden; }
         .btn-del { background: #333; color: #888; border: none; padding: 1px 6px; cursor: pointer; border-radius: 2px; }
         .funding-alert { background: #a6611a !important; color: white !important; font-weight: bold; }
-        #market-trend { font-weight: bold; margin-left: 5px; }
     </style>
 </head>
 <body>
 
 <div class="news-banner">
-    <div class="news-item"><b>📢 本週重大日程:</b></div>
+    <div class="news-item"><b>📢 重大日程:</b></div>
     <div class="news-item">01/13 (二) 21:30 <b>US CPI 數據</b></div>
     <div class="news-item">01/15 (四) 21:30 <b>初請失業金人數</b></div>
     <div class="news-item">01/16 (五) 23:00 <b>密大消費者信心指數</b></div>
@@ -46,9 +45,9 @@
 
 <div class="container">
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢 (已起飛)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (12H波動佈局)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>佈局評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (長效量能佈局)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>起漲評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
 <script>
@@ -65,37 +64,38 @@
 
         tickers.forEach(d => {
             if (d.s.endsWith('USDT') && !d.s.includes('UPUSDT') && !d.s.includes('DOWNUSDT')) {
-                const s = d.s.replace('USDT', ''), p = parseFloat(d.c), p24 = parseFloat(d.P), vol = parseFloat(d.q);
+                const s = d.s.replace('USDT', ''), p = parseFloat(d.c), p24 = parseFloat(d.P);
+                const vol = parseFloat(d.q), h = parseFloat(d.h), l = parseFloat(d.l);
+                const range = ((h - l) / l) * 100;
+                
                 p24 > 0 ? up++ : down++;
 
-                if (s === 'BTC') { 
-                    btcChange = p24; 
-                    document.getElementById('btc-live').innerText = `BTC: ${p} (${p24}%)`; 
-                }
+                if (s === 'BTC') { btcChange = p24; document.getElementById('btc-live').innerText = `BTC: ${p} (${p24}%)`; }
                 if (s === 'ETH') document.getElementById('eth-live').innerText = `ETH: ${p} (${p24}%)`;
 
                 if (!dataMap[s]) dataMap[s] = { lastP: p };
                 const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
 
-                // 1. 瞬間噴發 (保持 1%)
+                // 瞬間噴發
                 if (instChange >= 1.0) renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`);
                 
-                // 2. 高檔強勢 (漲幅 > 8% 自動移至此區)
+                // 高檔強勢
                 if (p24 > 8.0) updateStrong(s, p, p24);
 
-                // 3. 潛力佈局邏輯 (12h 波動 vs 3d 波動對比)
-                // 約束：成交量 > 800萬，漲幅在 2%~8% 之間 (佈局區)
-                if (vol > 8000000 && p24 >= 2.0 && p24 <= 8.0) {
-                    // 模擬波動覺醒評分 (當前即時變動 vs 24h漲幅的關係，對比過去的概念)
-                    const awakeningScore = Math.round((Math.abs(instChange) * 70) + (p24 * 30));
-                    candidates.push({ s, rawScore: awakeningScore, status: '低位覺醒' });
+                // 潛力監控 (V64 長效量能邏輯)
+                // 加入長週期權重：vol (24h總量) 對比 range (橫盤度)
+                // 模擬長週期量能覺醒：量能必須穩定高於基礎門檻，且價格處於剛突破(1-4%)的橫盤狀態
+                if (vol > 15000000 && p24 >= 1.0 && p24 <= 4.0 && range <= 5.0) {
+                    // 分數計算：成交量大 + 震幅極窄(越窄分越高)
+                    const volScore = (vol / 15000000) * 50;
+                    const squeezeScore = (5 - range) * 10;
+                    candidates.push({ s, rawScore: (volScore + squeezeScore), status: '趨勢轉強' });
                 }
 
                 dataMap[s].lastP = p;
             }
         });
 
-        // 市場寬度判斷
         const trendEl = document.getElementById('market-trend');
         if (up > down) { trendEl.innerText = "目前上漲較多"; trendEl.style.color = "var(--surge)"; }
         else if (down > up) { trendEl.innerText = "目前下跌較多"; trendEl.style.color = "var(--fall)"; }
@@ -148,7 +148,6 @@
         renderPotTable();
     }
 
-    // 資費排序 (±0.05 橘色背景)
     setInterval(async () => {
         try {
             const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
