@@ -2,20 +2,26 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V84.4 獵人終極量能版</title>
+    <title>V84.5 獵人版 - 空間優化</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
-        .top-calendar { height: 160px; border-bottom: 2px solid #444; background: #000; }
-        .header-main { display: flex; align-items: center; justify-content: space-between; background: #161b22; padding: 4px 12px; height: 32px; border-bottom: 1px solid var(--border); }
+        
+        /* 日曆縮小至 100px */
+        .top-calendar { height: 100px; border-bottom: 2px solid #444; background: #000; overflow: hidden; }
+        
+        .header-main { display: flex; align-items: center; justify-content: space-between; background: #161b22; padding: 2px 12px; height: 28px; border-bottom: 1px solid var(--border); }
         .container { display: grid; grid-template-columns: 1fr 1fr 1.1fr 1.6fr; gap: 4px; flex: 1; padding: 4px; box-sizing: border-box; overflow: hidden; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
-        h2 { font-size: 0.85rem; padding: 8px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); text-align: center; }
+        h2 { font-size: 0.8rem; padding: 5px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); text-align: center; }
         .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        td { padding: 8px 2px; border-bottom: 1px solid #21262d; text-align: center; }
+        td { padding: 6px 2px; border-bottom: 1px solid #21262d; text-align: center; }
+        
+        /* 資費標註樣式 */
         .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
         .funding-tag { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-left: 2px; }
+        
         @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514933; } 100% { background: transparent; } }
         .pot-alert { animation: blink-red 1s infinite; border: 1px solid var(--fall) !important; }
     </style>
@@ -23,12 +29,12 @@
 <body>
 
 <div class="header-main">
-    <div style="font-weight:bold; font-size:12px;">
+    <div style="font-weight:bold; font-size:11px;">
         <span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | 
         <span style="color:#627eea">ETH: <span id="eth-live">--</span></span>
     </div>
-    <div style="color:var(--strong); font-weight:bold;">V84.4 獵人版 | 3日均量對比邏輯</div>
-    <button onclick="location.reload()" style="cursor:pointer; padding: 2px 8px;">🔄 刷新系統</button>
+    <div style="color:var(--surge); font-weight:bold; font-size:11px;">V84.5 HUNTER | 精簡佈局</div>
+    <button onclick="location.reload()" style="cursor:pointer; padding: 1px 6px; font-size:10px;">🔄 刷新</button>
 </div>
 
 <div class="top-calendar">
@@ -40,7 +46,7 @@
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資金費率</h2><div class="scroll"><table><tbody id="fund-list"></tbody></table></div></div>
     <div class="card">
-        <h2 style="color:#bc8cff">💎 潛力監控 (3日放量對比)</h2>
+        <h2 style="color:#bc8cff">💎 潛力監控 (3日放量比)</h2>
         <div class="scroll"><table><thead><tr><th style="width:45%">幣種</th><th>評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div>
     </div>
 </div>
@@ -49,15 +55,15 @@
     const MY_BARK_KEY = 'KQP2fTbTfPp4HnhQSYNaxH';
     let btcChange = 0, fundingMap = {}, dataMap = {}, lockedPotList = [], pushed80 = new Set();
 
-    // 抓取過去 3 天的平均成交量基準
+    // 核心 API：3日均量基準
     async function getBaseVolume(symbol) {
         try {
-            const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=4h&limit=18`); // 18個4H = 3天
+            const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=4h&limit=18`);
             const data = await res.json();
             let totalVol = 0;
-            data.forEach(k => totalVol += parseFloat(k[7])); // k[7] 是成交額 (quote volume)
-            return totalVol / data.length; // 回傳 4H 的平均成交額基準
-        } catch(e) { return 1000000; } // 失敗則給個保底門檻
+            data.forEach(k => totalVol += parseFloat(k[7]));
+            return totalVol / data.length;
+        } catch(e) { return 1000000; }
     }
 
     async function updateFunding() {
@@ -72,7 +78,7 @@
                 fundingMap[s] = r;
                 if(Math.abs(r) >= 0.05) filtered.push({s, r});
             });
-            filtered.sort((a,b) => Math.abs(b.r)-Math.abs(a.r)).slice(0,12).forEach(f => {
+            filtered.sort((a,b) => Math.abs(b.r)-Math.abs(a.r)).slice(0,15).forEach(f => {
                 list.insertAdjacentHTML('beforeend', `<tr><td>${f.s}</td><td class="funding-high">${f.r.toFixed(4)}%</td></tr>`);
             });
         } catch(e) {}
@@ -85,16 +91,14 @@
             for (let d of tickers) {
                 if(d.s.endsWith('USDT')) {
                     const s = d.s.replace('USDT',''), p = parseFloat(d.c), p24 = parseFloat(d.P), vol = parseFloat(d.q), h = parseFloat(d.h), l = parseFloat(d.l), range = ((h-l)/l)*100;
-                    
                     if(s==='BTC') { btcChange=p24; document.getElementById('btc-live').innerText=`${p} (${p24}%)`; }
                     if(s==='ETH') document.getElementById('eth-live').innerText=`${p} (${p24}%)`;
                     
                     if(!dataMap[s]) {
                         dataMap[s] = {lp:p, avg4hVol: 0};
-                        dataMap[s].avg4hVol = await getBaseVolume(s); // 初始化抓取3天均量
+                        dataMap[s].avg4hVol = await getBaseVolume(s);
                     }
                     
-                    // 高檔強勢
                     const sList = document.getElementById('strong-list');
                     let r = [...sList.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
                     if (p24 > 8.0) {
@@ -102,7 +106,6 @@
                         else r.cells[1].innerText = `${p24}%`;
                     } else if (r) r.remove();
 
-                    // 瞬間噴發
                     const inst = ((p-dataMap[s].lp)/dataMap[s].lp)*100;
                     if(inst>=1.2) {
                         const b = document.getElementById('surge-list');
@@ -110,15 +113,12 @@
                         if(b.children.length>15) b.lastElementChild.remove();
                     }
 
-                    // 潛力幣 60/80：3日均量 vs 即時4H速
+                    // 潛力幣 60/80 邏輯
                     if(vol > 5000000 && p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
-                        const rsScore = (p24 - btcChange) > 0 ? Math.min(40, (p24 - btcChange) * 10) : 0;
+                        const rsScore = (p24 - btcChange) > 4 ? 40 : (p24 - btcChange) > 0 ? (p24 - btcChange) * 10 : 0;
                         const sqScore = Math.max(0, Math.min(30, (6.5 - range) * 5));
-                        
-                        // 量能比算法：當前24h量除以6，約略等於當前4h體感量，再對比3日均量
-                        const current4hSpeed = vol / 6; 
-                        const volRatio = current4hSpeed / dataMap[s].avg4hVol;
-                        const volScore = Math.min(30, (volRatio / 2) * 20); // 2倍均量即拿20分
+                        const volRatio = (vol / 6) / dataMap[s].avg4hVol;
+                        const volScore = Math.min(30, (volRatio / 2) * 20); 
                         
                         const score = Math.min(100, Math.round(rsScore + sqScore + volScore));
                         if (score >= 60) updatePot({s, score});
@@ -131,11 +131,11 @@
 
     function updatePot(c) {
         let item = lockedPotList.find(i=>i.s===c.s);
-        if(!item && lockedPotList.length < 10) { item = c; lockedPotList.push(item); }
+        if(!item && lockedPotList.length < 12) { item = c; lockedPotList.push(item); }
         if(item) {
             item.score = c.score;
             if(item.score >= 80 && !pushed80.has(item.s)) {
-                fetch(`https://api.day.app/${MY_BARK_KEY}/🎯均量爆發/${item.s}-${item.score}分?group=HunterPot`);
+                fetch(`https://api.day.app/${MY_BARK_KEY}/🎯獵人發現/${item.s}-${item.score}分?group=Hunter`);
                 pushed80.add(item.s);
             }
         }
@@ -143,7 +143,7 @@
         lockedPotList.sort((a,b)=>b.score-a.score).forEach(it => {
             const fr = fundingMap[it.s] || 0;
             const frClass = Math.abs(fr) >= 0.05 ? 'funding-high' : '';
-            list.insertAdjacentHTML('beforeend', `<tr class="${it.score>=80?'pot-alert':''}"><td>${it.s} <span class="funding-tag ${frClass}">${fr.toFixed(3)}%</span></td><td style="color:var(--alert);font-weight:bold">${it.score}</td><td>${it.score>=80?'放量體檢':'觀察'}</td><td><button style="border:none;background:transparent;color:#666;cursor:pointer" onclick="lockedPotList=lockedPotList.filter(i=>i.s!=='${it.s}');pushed80.delete('${it.s}');">✕</button></td></tr>`);
+            list.insertAdjacentHTML('beforeend', `<tr class="${it.score>=80?'pot-alert':''}"><td>${it.s} <span class="funding-tag ${frClass}">${fr.toFixed(3)}%</span></td><td style="color:var(--alert);font-weight:bold">${it.score}</td><td>${it.score>=80?'🔥':'👀'}</td><td><button style="border:none;background:transparent;color:#666;cursor:pointer" onclick="lockedPotList=lockedPotList.filter(i=>i.s!=='${it.s}');pushed80.delete('${it.s}');">✕</button></td></tr>`);
         });
     }
 
