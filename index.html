@@ -22,6 +22,7 @@
         .up { color: #02c076; } .down { color: #f84960; }
         .symbol { color: #f0b90b; font-weight: bold; }
         .del-btn { color: #f84960; cursor: pointer; border: 1px solid #f84960; border-radius: 3px; padding: 0 4px; font-size: 12px; margin-left:5px; }
+        .del-btn:hover { background: #f84960; color: white; }
         .breakout { background: rgba(58, 110, 255, 0.25) !important; }
         .tag-fire { background: #3a6eff; color: white; padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; }
         .watch-area { margin-top: 20px; padding-top: 15px; border-top: 2px dashed #2b3139; }
@@ -42,7 +43,10 @@
     </div>
     
     <div class="grid">
-        <div class="column"><div class="col-title">⚡ 瞬間噴發 (1%)</div><table><tbody id="instantBody"></tbody></table></div>
+        <div class="column">
+            <div class="col-title">⚡ 瞬間噴發 (1%)</div>
+            <table><tbody id="instantBody"></tbody></table>
+        </div>
         
         <div class="column">
             <div class="col-title">🔥 高檔強勢 (撐住)</div>
@@ -76,7 +80,8 @@
 
     <script>
         let lastPrices = new Map(), btcHistory = [], ethHistory = [];
-        let burstHistory = [], manualPivotList = [], blacklist = new Set(), trendBlacklist = new Set(), userWatchList = new Map();
+        let burstHistory = [], manualPivotList = [], blacklist = new Set();
+        let trendBlacklist = new Set(), burstBlacklist = new Set(), userWatchList = new Map();
         let timeLeft = 5;
 
         async function fetchFunding() {
@@ -100,17 +105,10 @@
                 let playBurst = false, playWatchUp = false, playWatchDown = false;
                 let now = new Date();
 
-                // --- 補回吸金王邏輯 ---
                 const excludeSymbols = ['BTCUSDT', 'ETHUSDT', 'USDCUSDT', 'USDTUSDT', 'BUSDUSDT', 'FDUSDUSDT'];
-                let altsTop3 = tickers
-                    .filter(t => t.symbol.endsWith('USDT') && !excludeSymbols.includes(t.symbol))
-                    .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-                    .slice(0, 3);
-                
-                document.getElementById('top3Content').innerHTML = altsTop3.map((t, i) => 
-                    `<span>${i+1}.${t.symbol.replace('USDT','')} <small style="color:#848e9c">(${(parseFloat(t.quoteVolume)/1000000000).toFixed(1)}B)</small></span>`
-                ).join(' | ');
-                // --------------------
+                let altsTop3 = tickers.filter(t => t.symbol.endsWith('USDT') && !excludeSymbols.includes(t.symbol))
+                    .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 3);
+                document.getElementById('top3Content').innerHTML = altsTop3.map((t, i) => `<span>${i+1}.${t.symbol.replace('USDT','')} <small style="color:#848e9c">(${(parseFloat(t.quoteVolume)/1000000000).toFixed(1)}B)</small></span>`).join(' | ');
 
                 tickers.filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_')).forEach(t => {
                     const symbol = t.symbol.replace('USDT', '');
@@ -131,8 +129,10 @@
 
                     let secChg = lastPrices.has(symbol) ? ((curP - lastPrices.get(symbol)) / lastPrices.get(symbol)) * 100 : 0;
                     
-                    if (secChg >= 1.0 && vol24h > 5000000) {
+                    // 瞬間噴發：增加黑名單過濾
+                    if (secChg >= 1.0 && vol24h > 5000000 && !burstBlacklist.has(symbol)) {
                         playBurst = true;
+                        burstHistory = burstHistory.filter(b => b.s !== symbol); // 移除重複，確保時間最新
                         burstHistory.unshift({ s: symbol, c: secChg, time: now.toLocaleTimeString('zh-TW',{hour12:false}) });
                         if (burstHistory.length > 12) burstHistory.pop();
                     }
@@ -166,8 +166,14 @@
             } catch (e) {}
         }
 
+        function removeBurst(s) {
+            burstBlacklist.add(s);
+            burstHistory = burstHistory.filter(b => b.s !== s);
+            renderAll([],[]);
+        }
+
         function renderAll(trendRes, awakeRes) {
-            document.getElementById('instantBody').innerHTML = burstHistory.map(r => `<tr><td class="symbol"><small style="color:#848e9c">${r.time}</small> ${r.s}</td><td class="up" align="right">+${r.c.toFixed(2)}%</td></tr>`).join('');
+            document.getElementById('instantBody').innerHTML = burstHistory.map(r => `<tr><td class="symbol"><small style="color:#848e9c">${r.time}</small> ${r.s} <span class="del-btn" onclick="removeBurst('${r.s}')">×</span></td><td class="up" align="right">+${r.c.toFixed(2)}%</td></tr>`).join('');
             document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,10).map(r => `<tr><td class="symbol">${r.s} <span class="del-btn" onclick="trendBlacklist.add('${r.s}'); run();">×</span></td><td class="up" align="right">+${r.c.toFixed(1)}%</td></tr>`).join('');
             let watchHTML = '';
             userWatchList.forEach((val, key) => {
