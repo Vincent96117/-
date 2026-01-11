@@ -2,60 +2,100 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V84.5 獵人版 - 空間優化</title>
+    <title>V86 獵人自研版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
         
-        /* 日曆縮小至 100px */
-        .top-calendar { height: 100px; border-bottom: 2px solid #444; background: #000; overflow: hidden; }
-        
+        /* 自研日曆樣式 */
+        .top-calendar { height: 75px; background: #000; border-bottom: 2px solid #444; overflow: hidden; display: flex; flex-direction: column; }
+        .cal-header { background: #161b22; padding: 3px 10px; color: #888; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
+        .cal-scroll { flex: 1; overflow-x: auto; display: flex; align-items: center; padding: 0 10px; gap: 20px; white-space: nowrap; }
+        .cal-item { display: flex; flex-direction: column; border-left: 2px solid var(--strong); padding-left: 8px; }
+        .cal-time { color: #888; font-size: 10px; }
+        .cal-event { color: #fff; font-weight: bold; font-size: 12px; }
+
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #161b22; padding: 2px 12px; height: 28px; border-bottom: 1px solid var(--border); }
-        .container { display: grid; grid-template-columns: 1fr 1fr 1.1fr 1.6fr; gap: 4px; flex: 1; padding: 4px; box-sizing: border-box; overflow: hidden; }
+        .container { display: grid; grid-template-columns: 1fr 1fr 1fr 1.6fr; gap: 4px; flex: 1; padding: 4px; box-sizing: border-box; overflow: hidden; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
         h2 { font-size: 0.8rem; padding: 5px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); text-align: center; }
         .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        td { padding: 6px 2px; border-bottom: 1px solid #21262d; text-align: center; }
-        
-        /* 資費標註樣式 */
+        td { padding: 5px 2px; border-bottom: 1px solid #21262d; text-align: center; }
         .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
         .funding-tag { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-left: 2px; }
-        
+        .split-line { height: 1px; background: #333; }
         @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514933; } 100% { background: transparent; } }
         .pot-alert { animation: blink-red 1s infinite; border: 1px solid var(--fall) !important; }
     </style>
 </head>
 <body>
 
-<div class="header-main">
-    <div style="font-weight:bold; font-size:11px;">
-        <span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | 
-        <span style="color:#627eea">ETH: <span id="eth-live">--</span></span>
+<div class="top-calendar">
+    <div class="cal-header">
+        <span>📅 重要經濟日曆 (USD - 高影響)</span>
+        <span id="cal-update-time">--:--</span>
     </div>
-    <div style="color:var(--surge); font-weight:bold; font-size:11px;">V84.5 HUNTER | 精簡佈局</div>
-    <button onclick="location.reload()" style="cursor:pointer; padding: 1px 6px; font-size:10px;">🔄 刷新</button>
+    <div class="cal-scroll" id="calendar-content">
+        <div style="color:#555">正在同步數據數據...</div>
+    </div>
 </div>
 
-<div class="top-calendar">
-    <iframe src="https://www.tradingview-widget.com/embed-widget/events/?locale=zh_TW&currencyFilter=USD&importanceFilter=0%2C1" style="width:100%; height:100%; border:none;"></iframe>
+<div class="header-main">
+    <div style="font-weight:bold; font-size:11px;">
+        <span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | <span style="color:#627eea">ETH: <span id="eth-live">--</span></span>
+    </div>
+    <div style="color:var(--surge); font-weight:bold;">V86 HUNTER | 雙邏輯整合版</div>
+    <button onclick="location.reload()" style="cursor:pointer; font-size:10px;">🔄 刷新</button>
 </div>
 
 <div class="container">
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資金費率</h2><div class="scroll"><table><tbody id="fund-list"></tbody></table></div></div>
+    
     <div class="card">
-        <h2 style="color:#bc8cff">💎 潛力監控 (3日放量比)</h2>
-        <div class="scroll"><table><thead><tr><th style="width:45%">幣種</th><th>評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div>
+        <h2 style="color:#bc8cff; font-size:0.75rem">💎 舊版 (1000萬量)</h2>
+        <div style="height: 48%;" class="scroll"><table><tbody id="pot-old-list"></tbody></table></div>
+        <div class="split-line"></div>
+        <h2 style="color:#58a6ff; font-size:0.75rem">🌀 新版 (3日放量比)</h2>
+        <div style="height: 48%;" class="scroll"><table><tbody id="pot-new-list"></tbody></table></div>
     </div>
 </div>
 
 <script>
     const MY_BARK_KEY = 'KQP2fTbTfPp4HnhQSYNaxH';
-    let btcChange = 0, fundingMap = {}, dataMap = {}, lockedPotList = [], pushed80 = new Set();
+    let btcChange = 0, fundingMap = {}, dataMap = {}, potOld = [], potNew = [], pushed80 = new Set();
 
-    // 核心 API：3日均量基準
+    // 1. 自研日曆數據抓取 (使用財經數據公共源)
+    async function fetchCalendar() {
+        try {
+            // 這裡使用一個穩定且免 API Key 的數據源
+            const response = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json');
+            const events = await response.json();
+            const container = document.getElementById('calendar-content');
+            container.innerHTML = '';
+            
+            // 過濾：只看美元 (USD) 且 影響度為高 (High)
+            const filtered = events.filter(e => e.country === 'USD' && e.impact === 'High').slice(0, 5);
+            
+            filtered.forEach(e => {
+                const date = new Date(e.date);
+                const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                container.insertAdjacentHTML('beforeend', `
+                    <div class="cal-item">
+                        <div class="cal-time">${timeStr}</div>
+                        <div class="cal-event">${e.title}</div>
+                    </div>
+                `);
+            });
+            document.getElementById('cal-update-time').innerText = '同步成功';
+        } catch (e) {
+            document.getElementById('calendar-content').innerHTML = '<div style="color:red">日曆加載失敗</div>';
+        }
+    }
+
+    // 2. 潛力幣基準成交量
     async function getBaseVolume(symbol) {
         try {
             const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=4h&limit=18`);
@@ -70,8 +110,7 @@
         try {
             const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
             const data = await res.json();
-            const list = document.getElementById('fund-list');
-            list.innerHTML = '';
+            const list = document.getElementById('fund-list'); list.innerHTML = '';
             let filtered = [];
             data.forEach(f => {
                 const s = f.symbol.replace('USDT',''), r = parseFloat(f.lastFundingRate)*100;
@@ -94,15 +133,12 @@
                     if(s==='BTC') { btcChange=p24; document.getElementById('btc-live').innerText=`${p} (${p24}%)`; }
                     if(s==='ETH') document.getElementById('eth-live').innerText=`${p} (${p24}%)`;
                     
-                    if(!dataMap[s]) {
-                        dataMap[s] = {lp:p, avg4hVol: 0};
-                        dataMap[s].avg4hVol = await getBaseVolume(s);
-                    }
+                    if(!dataMap[s]) { dataMap[s] = {lp:p, avg4hVol: 0}; dataMap[s].avg4hVol = await getBaseVolume(s); }
                     
-                    const sList = document.getElementById('strong-list');
-                    let r = [...sList.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
+                    const sl = document.getElementById('strong-list');
+                    let r = [...sl.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
                     if (p24 > 8.0) {
-                        if (!r) sList.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td style="color:var(--surge)">${p24}%</td></tr>`);
+                        if (!r) sl.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td style="color:var(--surge)">${p24}%</td></tr>`);
                         else r.cells[1].innerText = `${p24}%`;
                     } else if (r) r.remove();
 
@@ -110,18 +146,22 @@
                     if(inst>=1.2) {
                         const b = document.getElementById('surge-list');
                         b.insertAdjacentHTML('afterbegin', `<tr><td>${s}</td><td style="color:var(--surge)">+${inst.toFixed(2)}%</td></tr>`);
-                        if(b.children.length>15) b.lastElementChild.remove();
+                        if(b.children.length>12) b.lastElementChild.remove();
                     }
 
-                    // 潛力幣 60/80 邏輯
-                    if(vol > 5000000 && p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
-                        const rsScore = (p24 - btcChange) > 4 ? 40 : (p24 - btcChange) > 0 ? (p24 - btcChange) * 10 : 0;
-                        const sqScore = Math.max(0, Math.min(30, (6.5 - range) * 5));
+                    if(p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
+                        const rsS = (p24 - btcChange) > 0 ? Math.min(40, (p24 - btcChange) * 10) : 0;
+                        const sqS = Math.max(0, Math.min(30, (6.5 - range) * 5));
+
+                        // 舊版 (絕對量)
+                        if(vol > 10000000) {
+                            const volOldS = Math.min(30, (vol/10000000)*5);
+                            updatePotList(potOld, {s, score: Math.min(100, Math.round(rsS + sqS + volOldS))}, 'pot-old-list');
+                        }
+                        // 新版 (3日量比)
                         const volRatio = (vol / 6) / dataMap[s].avg4hVol;
-                        const volScore = Math.min(30, (volRatio / 2) * 20); 
-                        
-                        const score = Math.min(100, Math.round(rsScore + sqScore + volScore));
-                        if (score >= 60) updatePot({s, score});
+                        const volNewS = Math.min(30, (volRatio / 2) * 20);
+                        updatePotList(potNew, {s, score: Math.min(100, Math.round(rsS + sqS + volNewS))}, 'pot-new-list');
                     }
                     dataMap[s].lp=p;
                 }
@@ -129,24 +169,30 @@
         };
     }
 
-    function updatePot(c) {
-        let item = lockedPotList.find(i=>i.s===c.s);
-        if(!item && lockedPotList.length < 12) { item = c; lockedPotList.push(item); }
+    function updatePotList(list, c, elementId) {
+        if (c.score < 60) return;
+        let item = list.find(i=>i.s===c.s);
+        if(!item && list.length < 8) { item = c; list.push(item); }
         if(item) {
             item.score = c.score;
-            if(item.score >= 80 && !pushed80.has(item.s)) {
-                fetch(`https://api.day.app/${MY_BARK_KEY}/🎯獵人發現/${item.s}-${item.score}分?group=Hunter`);
-                pushed80.add(item.s);
+            if(item.score >= 80 && !pushed80.has(item.s + elementId)) {
+                fetch(`https://api.day.app/${MY_BARK_KEY}/🎯獵人-${elementId.includes('old')?'舊':'新'}/${item.s}-${item.score}分?group=Hunter`);
+                pushed80.add(item.s + elementId);
             }
         }
-        const list = document.getElementById('potential-list'); list.innerHTML = '';
-        lockedPotList.sort((a,b)=>b.score-a.score).forEach(it => {
+        renderPot(list, elementId);
+    }
+
+    function renderPot(list, eid) {
+        const dom = document.getElementById(eid); dom.innerHTML = '';
+        list.sort((a,b)=>b.score-a.score).forEach(it => {
             const fr = fundingMap[it.s] || 0;
             const frClass = Math.abs(fr) >= 0.05 ? 'funding-high' : '';
-            list.insertAdjacentHTML('beforeend', `<tr class="${it.score>=80?'pot-alert':''}"><td>${it.s} <span class="funding-tag ${frClass}">${fr.toFixed(3)}%</span></td><td style="color:var(--alert);font-weight:bold">${it.score}</td><td>${it.score>=80?'🔥':'👀'}</td><td><button style="border:none;background:transparent;color:#666;cursor:pointer" onclick="lockedPotList=lockedPotList.filter(i=>i.s!=='${it.s}');pushed80.delete('${it.s}');">✕</button></td></tr>`);
+            dom.insertAdjacentHTML('beforeend', `<tr class="${it.score>=80?'pot-alert':''}"><td>${it.s} <span class="funding-tag ${frClass}">${fr.toFixed(2)}%</span></td><td style="color:var(--alert);font-weight:bold">${it.score}</td><td><button style="border:none;background:transparent;color:#666;cursor:pointer" onclick="potOld=potOld.filter(x=>x.s!=='${it.s}');potNew=potNew.filter(x=>x.s!=='${it.s}');renderPot(potOld,'pot-old-list');renderPot(potNew,'pot-new-list');">✕</button></td></tr>`);
         });
     }
 
+    fetchCalendar();
     connectWS();
     updateFunding(); setInterval(updateFunding, 15000);
 </script>
