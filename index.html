@@ -16,23 +16,22 @@
         .stat-value { font-weight: 800; font-family: monospace; }
         
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        .column { background: #181a20; padding: 12px; border-radius: 10px; border: 1px solid #2b3139; min-height: 700px; display: flex; flex-direction: column; }
+        .column { background: #181a20; padding: 12px; border-radius: 10px; border: 1px solid #2b3139; min-height: 750px; display: flex; flex-direction: column; }
         .col-title { color: #f0b90b; font-size: 15px; font-weight: bold; margin-bottom: 8px; border-left: 4px solid #f0b90b; padding-left: 8px; }
         
-        .funding-table { width: 100%; font-size: 11px; margin-bottom: 15px; background: #0b0e11; border-radius: 4px; border-collapse: collapse; }
         table { width: 100%; border-collapse: collapse; }
         td { padding: 7px 4px; border-bottom: 1px solid #2b3139; font-size: 12px; }
         .up { color: #02c076; } .down { color: #f84960; }
         .symbol { color: #f0b90b; font-weight: bold; }
-        .del-btn { color: #f84960; cursor: pointer; border: 1px solid #f84960; border-radius: 3px; padding: 0 4px; font-size: 12px; margin-left:5px; }
+        .del-btn { color: #f84960; cursor: pointer; border: 1px solid #f84960; border-radius: 3px; padding: 0 4px; font-size: 12px; margin-left:5px; transition: 0.2s; }
+        .del-btn:hover { background: #f84960; color: white; }
         .breakout { background: rgba(58, 110, 255, 0.25) !important; }
         .tag-fire { background: #3a6eff; color: white; padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; }
         
-        /* 觀察清單專用樣式 */
-        .watch-area { margin-top: 15px; padding-top: 10px; border-top: 2px dashed #2b3139; flex: 1; }
+        .watch-area { margin-top: 20px; padding-top: 15px; border-top: 2px dashed #2b3139; }
         .manual-input-area { display: flex; gap: 5px; margin-top: 10px; }
-        #manualSymbol { background: #0b0e11; border: 1px solid #474d57; color: white; border-radius: 3px; padding: 4px; flex: 1; font-size: 12px; }
-        #addManualBtn { background: #f0b90b; color: black; border: none; border-radius: 3px; padding: 4px 8px; font-weight: bold; cursor: pointer; }
+        #manualSymbol { background: #0b0e11; border: 1px solid #474d57; color: white; border-radius: 3px; padding: 5px; flex: 1; font-size: 12px; }
+        #addManualBtn { background: #f0b90b; color: black; border: none; border-radius: 3px; padding: 5px 10px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -41,17 +40,17 @@
         <div class="stat-item"><span class="stat-label">BTC:</span><span id="btcPrice" class="stat-value">--</span> <span id="btcChg">--</span></div>
         <div class="stat-item"><span class="stat-label">ETH:</span><span id="ethPrice" class="stat-value">--</span> <span id="ethChg">--</span></div>
         <div class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;"><span class="stat-label">漲/跌:</span><span id="upCount" class="up">0</span>/<span id="downCount" class="down">0</span></div>
-        <div id="volTop3" class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;"><span class="stat-label">🔥 吸金王:</span> <span id="top3Content">載入中...</span></div>
-        <div id="riskTag" style="margin-left:auto; color:#fff; background:#f84960; padding:2px 8px; border-radius:4px; font-weight:bold; display:none;">⚠️ 插針警告</div>
+        <div id="volTop3" class="stat-item" style="border-left: 1px solid #474d57; padding-left:10px;"><span class="stat-label">🔥 吸金王:</span> <span id="top3Content">--</span></div>
+        <div id="riskTag" style="margin-left:auto; color:#fff; background:#f84960; padding:2px 8px; border-radius:4px; font-weight:bold; display:none; animation: flash 0.8s infinite;">⚠️ 插針警告</div>
         <div id="timer" style="margin-left: auto; color:#848e9c; font-size: 11px;">5s</div>
     </div>
     
     <div class="grid">
-        <div class="column"><div class="col-title">⚡ 瞬間噴發 (報警)</div><table><tbody id="instantBody"></tbody></table></div>
+        <div class="column"><div class="col-title">⚡ 瞬間噴發 (1%)</div><table><tbody id="instantBody"></tbody></table></div>
         
         <div class="column">
             <div class="col-title">🔥 高檔強勢 (撐住)</div>
-            <div style="max-height: 300px; overflow-y: auto;"><table><tbody id="trendBody"></tbody></table></div>
+            <div style="max-height: 350px; overflow-y: auto;"><table><tbody id="trendBody"></tbody></table></div>
             
             <div class="watch-area">
                 <div class="col-title" style="border-left-color: #3a6eff;">📌 觀察清單 (±1% 報警)</div>
@@ -65,7 +64,9 @@
         
         <div class="column">
             <div class="col-title">📊 資費異常榜 (|±0.05%|)</div>
-            <table class="funding-table"><thead><tr style="color:#848e9c"><td>幣種</td><td align="right">資費%</td></tr></thead><tbody id="fundingBody"></tbody></table>
+            <table style="background:#0b0e11; margin-bottom:15px; border-radius:4px;">
+                <tbody id="fundingBody"></tbody>
+            </table>
             <div class="col-title">📈 盤整量增 (2H)</div>
             <table><tbody id="sidewaysBody"></tbody></table>
         </div>
@@ -83,8 +84,7 @@
 
     <script>
         let lastPrices = new Map(), btcHistory = [], ethHistory = [];
-        let firstDetectedPrices = new Map(), maxPriceRecorded = new Map(), burstHistory = [];
-        let manualPivotList = [], blacklist = new Set(), userWatchList = new Map();
+        let burstHistory = [], manualPivotList = [], blacklist = new Set(), trendBlacklist = new Set(), userWatchList = new Map();
         let timeLeft = 5;
 
         async function fetchFunding() {
@@ -92,10 +92,10 @@
                 const resp = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
                 const data = await resp.json();
                 let highFunding = data.filter(i => Math.abs(parseFloat(i.lastFundingRate)) >= 0.0005)
-                    .sort((a, b) => Math.abs(parseFloat(b.lastFundingRate)) - Math.abs(parseFloat(a.lastFundingRate))).slice(0, 6);
+                    .sort((a, b) => Math.abs(parseFloat(b.lastFundingRate)) - Math.abs(parseFloat(a.lastFundingRate))).slice(0, 8);
                 document.getElementById('fundingBody').innerHTML = highFunding.map(i => {
                     let rate = (parseFloat(i.lastFundingRate) * 100).toFixed(3);
-                    return `<tr><td class="symbol">${i.symbol.replace('USDT','')}</td><td align="right" class="${Math.abs(rate)>=0.5?'funding-urgent':(rate>0?'up':'down')}">${rate}%</td></tr>`;
+                    return `<tr><td class="symbol">${i.symbol.replace('USDT','')}</td><td align="right" class="${Math.abs(rate)>=0.5?'down':(rate>0?'up':'down')}">${rate}%</td></tr>`;
                 }).join('');
             } catch(e) {}
         }
@@ -118,40 +118,36 @@
                         let hist = symbol === 'BTC' ? btcHistory : ethHistory;
                         hist.push(curP); if(hist.length > 12) hist.shift();
                         let drop = ((curP - hist[0]) / hist[0]) * 100;
-                        document.getElementById(symbol.toLowerCase() + 'Price').innerText = curP.toLocaleString();
-                        document.getElementById(symbol.toLowerCase() + 'Chg').innerText = (chg24>0?'+':'')+chg24+'%';
-                        document.getElementById(symbol.toLowerCase() + 'Chg').className = chg24 >= 0 ? 'up' : 'down';
-                        if (drop <= -0.5) { document.getElementById('topBar').classList.add('flash-red'); document.getElementById('riskTag').style.display = 'block'; }
-                        else if (drop > -0.1) { document.getElementById('topBar').classList.remove('flash-red'); document.getElementById('riskTag').style.display = 'none'; }
+                        document.getElementById(symbol.toLowerCase()+'Price').innerText = curP.toLocaleString();
+                        document.getElementById(symbol.toLowerCase()+'Chg').innerText = (chg24>0?'+':'')+chg24+'%';
+                        document.getElementById(symbol.toLowerCase()+'Chg').className = chg24>=0?'up':'down';
+                        if (drop <= -0.5) { document.getElementById('topBar').classList.add('flash-red'); document.getElementById('riskTag').style.display='block'; }
+                        else if (drop > -0.1) { document.getElementById('topBar').classList.remove('flash-red'); document.getElementById('riskTag').style.display='none'; }
                     }
 
                     let secChg = lastPrices.has(symbol) ? ((curP - lastPrices.get(symbol)) / lastPrices.get(symbol)) * 100 : 0;
                     
-                    // 1% 瞬間噴發報警
                     if (secChg >= 1.0 && vol24h > 5000000) {
                         playBurst = true;
-                        const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
-                        burstHistory.unshift({ s: symbol, c: secChg, time: timeStr });
+                        burstHistory.unshift({ s: symbol, c: secChg, time: now.toLocaleTimeString('zh-TW',{hour12:false}) });
                         if (burstHistory.length > 12) burstHistory.pop();
                     }
 
-                    // 觀察清單報警邏輯
                     if (userWatchList.has(symbol)) {
                         if (secChg >= 1.0) playWatchUp = true;
                         if (secChg <= -1.0) playWatchDown = true;
                         userWatchList.set(symbol, { p: curP, c: chg24 });
                     }
 
-                    if (chg24 > 5.0 && (high - curP)/high < 0.015) trendRes.push({ s: symbol, c: chg24 });
+                    if (chg24 > 5.0 && (high - curP)/high < 0.015 && !trendBlacklist.has(symbol)) trendRes.push({ s: symbol, c: chg24 });
                     const realB = (vol24h / 450) / (vol24h / 1440);
                     if (Math.abs(chg24) < 3.5 && realB > 1.1) awakeRes.push({ s: symbol, b: realB });
 
                     let ma = (curP + (curP / (1 + chg24/100))) / 2;
                     if (Math.abs(curP - ma) / ma * 100 < 1.5 && chg24 > -5 && chg24 < 3 && !blacklist.has(symbol)) {
                         let idx = manualPivotList.findIndex(p => p.s === symbol);
-                        let isBreakout = curP > ma && secChg > 0.1;
-                        if (idx === -1 && manualPivotList.length < 15) manualPivotList.push({ s: symbol, breakout: isBreakout });
-                        else if (idx !== -1) manualPivotList[idx].breakout = isBreakout;
+                        if (idx === -1 && manualPivotList.length < 15) manualPivotList.push({ s: symbol, breakout: (curP > ma && secChg > 0.1) });
+                        else if (idx !== -1) manualPivotList[idx].breakout = (curP > ma && secChg > 0.1);
                     }
                     lastPrices.set(symbol, curP);
                 });
@@ -168,16 +164,20 @@
 
         function renderAll(trendRes, awakeRes) {
             document.getElementById('instantBody').innerHTML = burstHistory.map(r => `<tr><td class="symbol"><small style="color:#848e9c">${r.time}</small> ${r.s}</td><td class="up" align="right">+${r.c.toFixed(2)}%</td></tr>`).join('');
-            document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,10).map(r => `<tr><td class="symbol">${r.s}</td><td class="up" align="right">+${r.c.toFixed(1)}%</td></tr>`).join('');
+            
+            document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,10).map(r => `
+                <tr><td class="symbol">${r.s} <span class="del-btn" onclick="trendBlacklist.add('${r.s}'); run();">×</span></td>
+                <td class="up" align="right">+${r.c.toFixed(1)}%</td></tr>`).join('');
             
             let watchHTML = '';
             userWatchList.forEach((val, key) => {
-                watchHTML += `<tr><td class="symbol">${key} <span class="del-btn" onclick="userWatchList.delete('${key}'); renderAll([], []);">×</span></td><td>${val.p.toLocaleString()}</td><td class="${val.c>=0?'up':'down'}" align="right">${val.c.toFixed(1)}%</td></tr>`;
+                watchHTML += `<tr><td class="symbol">${key} <span class="del-btn" onclick="userWatchList.delete('${key}'); renderAll([],[]);">×</span></td>
+                <td>${val.p.toLocaleString()}</td><td class="${val.c>=0?'up':'down'}" align="right">${val.c.toFixed(1)}%</td></tr>`;
             });
             document.getElementById('userWatchBody').innerHTML = watchHTML;
 
             document.getElementById('sidewaysBody').innerHTML = awakeRes.sort((a,b)=>b.b-a.b).slice(0,8).map(r => `<tr><td class="symbol">${r.s}</td><td align="right">${r.b.toFixed(1)}x 量</td></tr>`).join('');
-            document.getElementById('pivotBody').innerHTML = manualPivotList.map(r => `<tr class="${r.breakout ? 'breakout' : ''}"><td class="symbol">${r.s} <span class="del-btn" onclick="blacklist.add('${r.s}'); manualPivotList=manualPivotList.filter(i=>i.s!=='${r.s}'); renderAll([], []);">×</span></td><td align="right">${r.breakout ? '<span class="tag-fire">🔥 突破</span>' : '壓縮'}</td></tr>`).join('');
+            document.getElementById('pivotBody').innerHTML = manualPivotList.map(r => `<tr class="${r.breakout ? 'breakout' : ''}"><td class="symbol">${r.s} <span class="del-btn" onclick="blacklist.add('${r.s}'); manualPivotList=manualPivotList.filter(i=>i.s!=='${r.s}'); renderAll([],[]);">×</span></td><td align="right">${r.breakout ? '<span class="tag-fire">🔥 突破</span>' : '壓縮'}</td></tr>`).join('');
         }
 
         document.getElementById('addManualBtn').onclick = () => {
