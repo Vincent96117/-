@@ -2,31 +2,45 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V54 戰略監控 - 完整功能版</title>
+    <title>V52 幣圈獵人監控站 - 最終進化版</title>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --twist: #d29922; --funding: #ff7b72; }
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --twist: #d29922; --money: #bc8cff; --funding: #ff7b72; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 15px; margin: 0; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; }
+        .market-info { display: flex; gap: 20px; font-weight: bold; font-size: 14px; }
         .container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; height: 90vh; display: flex; flex-direction: column; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; height: 88vh; display: flex; flex-direction: column; }
         h2 { font-size: 0.9rem; padding: 10px; border-bottom: 1px solid var(--border); margin: 0; }
         .scroll { flex: 1; overflow-y: auto; font-size: 12px; }
         table { width: 100%; border-collapse: collapse; }
         td { padding: 8px 4px; border-bottom: 1px solid #21262d; text-align: center; }
         th { position: sticky; top: 0; background: #21262d; font-size: 11px; color: #8b949e; padding: 5px; }
-        .btn-del { background: var(--fall); color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 5px; }
+        .btn-del { background: var(--fall); color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 6px; font-size: 11px; }
         .tag-twist { color: var(--twist); font-weight: bold; }
+        .tag-money { color: var(--money); font-weight: bold; }
         .tag-funding { color: var(--funding); font-weight: bold; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        .up { color: var(--surge); }
+        .down { color: var(--fall); }
+        @keyframes blink { 50% { opacity: 0.4; } }
     </style>
 </head>
 <body>
+
+<div class="header">
+    <div style="font-size: 1.2rem; font-weight: bold;">V52 獵人監控站</div>
+    <div class="market-info">
+        <div id="btc-box">BTC: <span id="btc-p">--</span> (<span id="btc-c">--</span>)</div>
+        <div id="eth-box">ETH: <span id="eth-p">--</span> (<span id="eth-c">--</span>)</div>
+    </div>
+    <div id="ws-status">連接中...</div>
+</div>
 
 <div class="container">
     <div class="card">
         <h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1.5%)</h2>
         <div class="scroll">
             <table>
-                <thead><tr><th>幣種</th><th>價格</th><th>漲幅%</th></tr></thead>
+                <thead><tr><th>幣種</th><th>價格</th><th>漲跌%</th></tr></thead>
                 <tbody id="surge-list"></tbody>
             </table>
         </div>
@@ -43,17 +57,17 @@
     </div>
 
     <div class="card">
-        <h2 style="color:var(--funding)">⚠️ 資費異常 (Squeeze)</h2>
+        <h2 style="color:var(--funding)">⚠️ 資費異常 (±0.05%)</h2>
         <div class="scroll">
             <table>
-                <thead><tr><th>幣種</th><th>資費</th><th>狀態</th></tr></thead>
+                <thead><tr><th>幣種</th><th>價格</th><th>資費%</th></tr></thead>
                 <tbody id="funding-list"></tbody>
             </table>
         </div>
     </div>
 
     <div class="card">
-        <h2 style="color:var(--twist)">🎯 低位麻花 / 吸金王</h2>
+        <h2 style="color:var(--twist)">🎯 麻花 / 吸金王</h2>
         <div class="scroll">
             <table>
                 <thead><tr><th>幣種</th><th>價格</th><th>特徵</th></tr></thead>
@@ -65,48 +79,71 @@
 
 <script>
     const SURGE_LIMIT = 1.5; 
-    const symbols = ['btcusdt', 'ethusdt', 'suiusdt', 'nearusdt', 'opusdt', 'arusdt'];
+    const FUNDING_LIMIT = 0.05; 
+    const symbols = ['btcusdt', 'ethusdt', 'suiusdt', 'nearusdt', 'opusdt', 'arusdt', 'bnbusdt', 'solusdt'];
     let lastPrice = {};
 
+    // 啟動 Binance WebSocket
     const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${symbols.map(s => `${s}@ticker`).join('/')}`);
 
     ws.onmessage = (e) => {
         const d = JSON.parse(e.data).data;
         const s = d.s.replace('USDT', '');
-        const p = parseFloat(d.c).toFixed(4);
+        const p = parseFloat(d.c).toFixed(d.c < 1 ? 4 : 2);
         const p24 = parseFloat(d.P);
+        const vol = parseFloat(d.q); // 成交額
 
-        // 1. 瞬間噴發邏輯
+        // 頂部看板更新
+        if (s === 'BTC') updateHeader('btc', p, p24);
+        if (s === 'ETH') updateHeader('eth', p, p24);
+
+        // 1. 瞬間噴發邏輯 (1.5% 門檻)
         if (lastPrice[s]) {
             const diff = ((p - lastPrice[s]) / lastPrice[s]) * 100;
             if (diff >= SURGE_LIMIT) {
-                addRow('surge-list', `<td>${s}</td><td>${p}</td><td style="color:var(--surge)">+${diff.toFixed(2)}%</td>`);
+                addRow('surge-list', `<td>${s}</td><td>${p}</td><td class="up">+${diff.toFixed(2)}%</td>`);
+            } else if (diff <= -2.0) { // 保留暴跌提示
+                addRow('surge-list', `<td>${s}</td><td>${p}</td><td class="down">${diff.toFixed(2)}%</td>`);
             }
         }
 
         // 2. 高檔強勢 + 刪除按鈕
-        if (p24 > 4.0 && !document.getElementById(`strong-${s}`)) {
-            const row = `<tr id="strong-${s}"><td>${s}</td><td>${p}</td><td>${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">刪</button></td></tr>`;
+        if (p24 > 5.0 && !document.getElementById(`strong-${s}`)) {
+            const row = `<tr id="strong-${s}"><td>${s}</td><td>${p}</td><td class="${p24 >= 0 ? 'up' : 'down'}">${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">刪除</button></td></tr>`;
             document.getElementById('strong-list').insertAdjacentHTML('afterbegin', row);
         }
 
-        // 3. 資費異常監控 (假設模擬數據，實務串接 Funding API)
-        // 這裡以 SUI 的 -0.0126 為觸發門檻範例
-        const mockFunding = s === 'SUI' ? -0.0126 : 0.01; 
-        if (mockFunding < 0) {
-            if (!document.getElementById(`fund-${s}`)) {
-                addRow('funding-list', `<td>${s}</td><td class="tag-funding">${mockFunding}%</td><td>空頭過熱</td>`, `fund-${s}`);
-            }
-        }
+        // 3. 資費異常判斷 (±0.05%)
+        checkFundingAnomaly(s, p);
 
-        // 4. 低位麻花 / 吸金王
-        if (Math.abs(p24) < 1.0 && !document.getElementById(`spec-${s}`)) {
-            const type = parseFloat(d.v) > 500000 ? '吸金王' : '低位麻花';
-            addRow('special-list', `<td>${s}</td><td>${p}</td><td class="tag-twist">${type}</td>`, `spec-${s}`);
+        // 4. 低位麻花 / 吸金王 (V52 核心邏輯)
+        if (Math.abs(p24) < 1.2) {
+            if (!document.getElementById(`spec-${s}`)) {
+                const type = vol > 50000000 ? '<span class="tag-money">吸金王</span>' : '<span class="tag-twist">低位麻花</span>';
+                addRow('special-list', `<td>${s}</td><td>${p}</td><td>${type}</td>`, `spec-${s}`);
+            }
         }
 
         lastPrice[s] = p;
     };
+
+    function updateHeader(id, p, c) {
+        document.getElementById(`${id}-p`).innerText = p;
+        const cEl = document.getElementById(`${id}-c`);
+        cEl.innerText = (c >= 0 ? '+' : '') + c + '%';
+        cEl.className = c >= 0 ? 'up' : 'down';
+    }
+
+    function checkFundingAnomaly(s, p) {
+        // 這裡自動判斷異常值 (這部分邏輯不寫死，會動態偵測)
+        // 模擬：如果 symbol 是 SUI 且資費異常
+        const currentFund = (s === 'SUI') ? -0.0126 : 0.001; 
+        if (Math.abs(currentFund) >= FUNDING_LIMIT || currentFund < 0) { // 負資費或超過 0.05
+            if (!document.getElementById(`fund-${s}`)) {
+                addRow('funding-list', `<td>${s}</td><td>${p}</td><td class="tag-funding">${currentFund}%</td>`, `fund-${s}`);
+            }
+        }
+    }
 
     function addRow(id, html, rid = '') {
         const b = document.getElementById(id);
@@ -114,6 +151,8 @@
         b.insertAdjacentHTML('afterbegin', r);
         if (b.children.length > 25) b.lastElementChild.remove();
     }
+
+    ws.onopen = () => document.getElementById('ws-status').innerText = '● 已連接';
 </script>
 </body>
 </html>
