@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V69 獵人修復版 (資費回歸+權重優化)</title>
+    <title>V72 獵人終極版 (籌碼集中度)</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
@@ -50,7 +50,7 @@
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (RS相對強度)</h2><div class="scroll"><table><thead><th style="width:35%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (籌碼集中度版)</h2><div class="scroll"><table><thead><th style="width:38%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
 <script>
@@ -79,21 +79,18 @@
             const data = await res.json();
             const fundList = document.getElementById('fund-list');
             const currentFunds = [];
-            
             data.forEach(f => {
                 const s = f.symbol.replace('USDT', '');
                 const r = parseFloat(f.lastFundingRate) * 100;
                 fundingMap[s] = r;
                 if (Math.abs(r) >= 0.05) currentFunds.push({ s, r });
             });
-
-            // 更新獨立資費欄位 (修復點)
             fundList.innerHTML = '';
             currentFunds.sort((a, b) => Math.abs(b.r) - Math.abs(a.r)).slice(0, 5).forEach(f => {
                 fundList.insertAdjacentHTML('beforeend', `<tr><td>${f.s}</td><td class="funding-high">${f.r.toFixed(4)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
             });
             renderPotTable(); 
-        } catch(e) { console.error("Funding error", e); }
+        } catch(e) {}
     }
     setInterval(updateFunding, 10000);
     updateFunding();
@@ -116,14 +113,22 @@
                 if (instChange >= 1.0) { renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`); playBeep(1); }
                 if (p24 > 8.0) updateStrong(s, p, p24);
 
-                // 權重優化：領先大盤 3% 才是滿分
+                // V72 核心邏輯：漲幅 1-5%, 震幅 <= 6.5%, 量底 800萬
                 if (vol > 8000000 && p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
                     const leadDiff = p24 - btcChange;
-                    const volBase = Math.min(25, (vol / 8000000) * 8);
-                    const squeezeBase = (6.5 - range) * 4;
-                    const rsScore = leadDiff > 0 ? Math.min(50, leadDiff * 16.6) : 0;
-                    const finalScore = Math.round(volBase + squeezeBase + rsScore);
-                    candidates.push({ s, rawScore: finalScore, status: leadDiff > 1.5 ? '領先大盤' : '橫盤轉強' });
+                    const rsScore = leadDiff > 0 ? Math.min(40, leadDiff * 15) : 0; // RS佔40
+                    const squeezeScore = Math.max(0, (6.5 - range) * 3); // 擠壓佔20
+                    
+                    // V72 籌碼對比邏輯 (佔40): 成交量密度 + 量價背離加成
+                    let chipScore = Math.min(40, (vol / 12000000) * 15);
+                    if (vol > 20000000 && range < 4.0) chipScore += 10; // 量大且窄幅 = 強力吸籌
+
+                    const finalScore = Math.round(rsScore + squeezeScore + chipScore);
+                    candidates.push({ 
+                        s, 
+                        rawScore: Math.min(100, finalScore), 
+                        status: range < 3.5 ? '籌碼高度集中' : (leadDiff > 1.5 ? '放量領先' : '底部蓄勢') 
+                    });
                 }
                 dataMap[s].lastP = p;
             }
@@ -168,8 +173,8 @@
             if (row) {
                 const fRate = fundingMap[item.s] || 0;
                 const fClass = Math.abs(fRate) >= 0.05 ? 'funding-high' : '';
-                row.cells[0].querySelector('.funding-tag').className = `funding-tag ${fClass}`;
-                row.cells[0].querySelector('.funding-tag').innerText = `${fRate.toFixed(3)}%`;
+                const fTag = row.cells[0].querySelector('.funding-tag');
+                if(fTag) { fTag.className = `funding-tag ${fClass}`; fTag.innerText = `${fRate.toFixed(3)}%`; }
                 row.cells[1].innerText = item.rawScore;
                 if (item.rawScore >= 80) row.classList.add('pot-alert'); else row.classList.remove('pot-alert');
             }
