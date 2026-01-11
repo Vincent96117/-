@@ -2,12 +2,11 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V82 獵人終極版 (全功能復原)</title>
+    <title>V82.1 獵人終極版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
-        /* 五欄佈局 */
-        .container { display: grid; grid-template-columns: 0.9fr 1fr 1.3fr 1.3fr 1.3fr; gap: 4px; height: calc(100vh - 80px); padding: 4px; box-sizing: border-box; }
+        .container { display: grid; grid-template-columns: 0.9fr 1fr 1.4fr 1.3fr 1.3fr; gap: 4px; height: calc(100vh - 60px); padding: 4px; box-sizing: border-box; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
         h2 { font-size: 0.8rem; padding: 6px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); text-align: center; }
         .scroll { flex: 1; overflow-y: auto; }
@@ -17,102 +16,88 @@
         .news-time { color: #888; font-size: 9px; margin-right: 5px; }
         .trump-tag { background: #ff4444; color: #fff; padding: 1px 3px; border-radius: 2px; font-size: 9px; font-weight: bold; }
         .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
-        .header-status { display: flex; justify-content: space-between; padding: 5px 15px; background: #000; border-bottom: 1px solid #333; font-size: 12px; font-weight: bold; }
-        @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514955; } 100% { background: transparent; } }
-        .pot-alert { animation: blink-red 0.5s infinite; border: 1px solid var(--fall) !important; }
+        .header { display: flex; justify-content: space-between; padding: 5px 15px; background: #000; border-bottom: 1px solid #333; font-size: 12px; }
     </style>
 </head>
 <body>
 
-<div class="header-status">
-    <div><span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | <span style="color:#627eea">ETH: <span id="eth-live">--</span></span></div>
-    <div style="color:var(--surge)">V82 獵人系統運作中 | Bark ✅ | News 2m更新</div>
-    <button onclick="location.reload()" style="font-size:10px; cursor:pointer;">🔄 重新整理</button>
+<div class="header">
+    <div id="price-line"><span style="color:#f2a900">BTC: --</span> | <span style="color:#627eea">ETH: --</span></div>
+    <div style="color:var(--strong)">V82.1 全功能穩定版 (日曆+12H新聞)</div>
+    <button onclick="location.reload()" style="font-size:10px; cursor:pointer">🔄 刷新</button>
 </div>
 
 <div class="container">
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     
-    <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th style="width:35%">幣種</th><th>24h%</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><tbody id="strong-list"></tbody></table></div></div>
 
     <div class="card">
         <h2 style="color:var(--alert)">🏛️ 12H川普快訊</h2>
-        <div style="height: 65%;" class="scroll" id="trump-news-box">載入中...</div>
-        <h2 style="color:var(--fall); border-top: 1px solid #333;">⚠️ 資費(±0.05)</h2>
-        <div style="height: 35%;" class="scroll">
-            <table><tbody id="fund-list"></tbody></table>
-        </div>
+        <div style="height: 65%;" class="scroll" id="trump-news-box">偵測連線中...</div>
+        <h2 style="color:var(--fall); border-top: 1px solid #333;">⚠️ 資金費率</h2>
+        <div style="height: 35%;" class="scroll"><table><tbody id="fund-list"></tbody></table></div>
     </div>
 
-    <div class="card">
-        <h2 style="color:#bc8cff">💎 潛力監控 (60/80)</h2>
-        <div class="scroll"><table><tbody id="potential-list"></tbody></table></div>
-    </div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控</h2><div class="scroll"><table><tbody id="potential-list"></tbody></table></div></div>
 
     <div class="card">
         <h2 style="color:#58a6ff">📅 財經日曆</h2>
         <div class="scroll">
-            <iframe src="https://www.tradingview-widget.com/embed-widget/events/?locale=zh_TW&importanceFilter=-1,0,1&currencyFilter=USD" style="width:100%; height:100%; border:none;"></iframe>
+            <iframe src="https://www.tradingview-widget.com/embed-widget/events/?locale=zh_TW&currencyFilter=USD" style="width:100%; height:100%; border:none;"></iframe>
         </div>
     </div>
 </div>
 
 <script>
     const MY_BARK_KEY = 'KQP2fTbTfPp4HnhQSYNaxH';
-    const PANIC_KEY = '1d2a12a87781f05beea8bf24f011d4c99319fa9d'; 
-    let lastNewsId = null, fundingMap = {}, dataMap = {}, lockedPotList = [], pushed80 = new Set();
+    const PANIC_KEY = '1d2a12a87781f05beea8bf24f011d4c99319fa9d';
+    let lastNewsId = null, fundingMap = {}, dataMap = {}, lockedPotList = [];
 
-    // 修改新聞 API：拿掉 Hot 限制，抓取更多 12 小時內的新聞
+    // 使用代理伺服器解決「載入中」的 CORS 問題
     async function fetchTrumpNews() {
+        const box = document.getElementById('trump-news-box');
+        // 加上 cors-anywhere 或使用公共代理網址
+        const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://cryptopanic.com/api/v1/posts/?auth_token=${PANIC_KEY}&q=Trump&public=true`)}`;
+        
         try {
-            // q=Trump 且不加 filter=hot 以獲得更多 12H 內的數據
-            const res = await fetch(`https://cryptopanic.com/api/v1/posts/?auth_token=${PANIC_KEY}&q=Trump&public=true`);
-            const data = await res.json();
-            const box = document.getElementById('trump-news-box');
-            if(!data.results) { box.innerText = "新聞連線中..."; return; }
+            const res = await fetch(url);
+            const rawData = await res.json();
+            const data = JSON.parse(rawData.contents);
             
+            if(!data.results || data.results.length === 0) {
+                box.innerHTML = '<div style="padding:10px; color:#666">暫無 12H 相關消息</div>';
+                return;
+            }
+
             box.innerHTML = '';
             data.results.slice(0, 15).forEach((n, i) => {
                 const time = new Date(n.published_at);
-                const timeStr = `${String(time.getHours()).padStart(2,'0')}:${String(time.getMinutes()).padStart(2,'0')}`;
+                const timeStr = `${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}`;
                 const isT = n.title.toUpperCase().includes('TRUMP');
                 box.insertAdjacentHTML('beforeend', `<div class="news-li"><span class="news-time">${timeStr}</span>${isT?'<span class="trump-tag">T</span> ':''}${n.title}</div>`);
                 
-                if (i===0 && isT && n.id !== lastNewsId) {
-                    sendBark("🏛️ 川普快訊", n.title);
+                if (i === 0 && isT && n.id !== lastNewsId) {
+                    fetch(`https://api.day.app/${MY_BARK_KEY}/🏛️川普快訊/${encodeURIComponent(n.title)}?group=TrumpV82`);
                     lastNewsId = n.id;
                 }
             });
-        } catch(e) { console.log("News API Error"); }
+        } catch(e) {
+            box.innerHTML = '<div style="padding:10px; color:red">連線超時，自動重試中...</div>';
+        }
     }
 
-    async function updateFunding() {
-        try {
-            const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
-            const data = await res.json();
-            const list = document.getElementById('fund-list');
-            let current = [];
-            data.forEach(f => {
-                const s = f.symbol.replace('USDT',''), r = parseFloat(f.lastFundingRate)*100;
-                fundingMap[s] = r;
-                if(Math.abs(r) >= 0.05) current.push({s, r});
-            });
-            list.innerHTML = '';
-            current.sort((a,b) => Math.abs(b.r)-Math.abs(a.r)).slice(0,5).forEach(f => {
-                list.insertAdjacentHTML('beforeend', `<tr><td>${f.s}</td><td class="funding-high">${f.r.toFixed(4)}%</td></tr>`);
-            });
-        } catch(e) {}
-    }
-
+    // 幣安 WebSocket 連線與高檔強勢邏輯
     function connectWS() {
         const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
         ws.onmessage = (e) => {
             JSON.parse(e.data).forEach(d => {
                 if(d.s.endsWith('USDT')) {
-                    const s = d.s.replace('USDT',''), p = parseFloat(d.c), p24 = parseFloat(d.P), vol = parseFloat(d.q), h = parseFloat(d.h), l = parseFloat(d.l), range = ((h-l)/l)*100;
-                    if(s==='BTC') document.getElementById('btc-live').innerText = `${p} (${p24}%)`;
-                    if(s==='ETH') document.getElementById('eth-live').innerText = `${p} (${p24}%)`;
+                    const s = d.s.replace('USDT',''), p = parseFloat(d.c), p24 = parseFloat(d.P);
+                    if(s==='BTC') document.getElementById('price-line').children[0].innerText = `BTC: ${p} (${p24}%)`;
+                    if(s==='ETH') document.getElementById('price-line').children[1].innerText = `ETH: ${p} (${p24}%)`;
                     
+                    // 高檔強勢補回
                     const sList = document.getElementById('strong-list');
                     let r = [...sList.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
                     if (p24 > 8.0) {
@@ -122,11 +107,10 @@
 
                     if(!dataMap[s]) dataMap[s]={lp:p};
                     const inst = ((p-dataMap[s].lp)/dataMap[s].lp)*100;
-                    if(inst>=1.2) renderSurge(s, inst);
-
-                    if(vol > 10000000 && p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
-                        const score = Math.round((p24*15) + ((6.5-range)*3));
-                        updatePot({s, score, p24});
+                    if(inst>=1.2) {
+                        const b = document.getElementById('surge-list');
+                        b.insertAdjacentHTML('afterbegin', `<tr><td>${s}</td><td style="color:var(--surge)">+${inst.toFixed(2)}%</td></tr>`);
+                        if(b.children.length>12) b.lastElementChild.remove();
                     }
                     dataMap[s].lp=p;
                 }
@@ -134,27 +118,22 @@
         };
     }
 
-    function updatePot(c) {
-        let item = lockedPotList.find(i=>i.s===c.s);
-        if(!item && lockedPotList.length < 8) { item = c; lockedPotList.push(item); }
-        if(item) {
-            item.score = c.score;
-            if(item.score >= 80 && !pushed80.has(item.s)) { sendBark("🎯 成熟", item.s); pushed80.add(item.s); }
-        }
-        const list = document.getElementById('potential-list'); list.innerHTML = '';
-        lockedPotList.forEach(item => {
-            const fr = fundingMap[item.s] || 0;
-            list.insertAdjacentHTML('beforeend', `<tr class="${item.score>=80?'pot-alert':''}"><td>${item.s} <span class="funding-tag ${Math.abs(fr)>=0.05?'funding-high':''}">${fr.toFixed(3)}%</span></td><td style="color:var(--alert);font-weight:bold">${item.score}</td><td><button style="border:none;background:#333;color:#888" onclick="lockedPotList=lockedPotList.filter(i=>i.s!=='${item.s}');">✕</button></td></tr>`);
-        });
+    async function updateFunding() {
+        try {
+            const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
+            const data = await res.json();
+            const list = document.getElementById('fund-list');
+            list.innerHTML = '';
+            data.filter(f => Math.abs(parseFloat(f.lastFundingRate)*100) >= 0.05)
+                .sort((a,b) => Math.abs(b.lastFundingRate)-Math.abs(a.lastFundingRate))
+                .slice(0,5).forEach(f => {
+                    const r = (parseFloat(f.lastFundingRate)*100).toFixed(4);
+                    list.insertAdjacentHTML('beforeend', `<tr><td>${f.symbol.replace('USDT','')}</td><td class="funding-high">${r}%</td></tr>`);
+                });
+        } catch(e) {}
     }
 
-    function renderSurge(s, i) { 
-        const b = document.getElementById('surge-list');
-        b.insertAdjacentHTML('afterbegin', `<tr><td>${s}</td><td style="color:var(--surge)">+${i.toFixed(2)}%</td></tr>`);
-        if(b.children.length>12) b.lastElementChild.remove();
-    }
-    function sendBark(t, b) { fetch(`https://api.day.app/${MY_BARK_KEY}/${encodeURIComponent(t)}/${encodeURIComponent(b)}?group=HunterV82`); }
-
+    // 啟動
     connectWS();
     updateFunding(); setInterval(updateFunding, 15000);
     fetchTrumpNews(); setInterval(fetchTrumpNews, 120000);
