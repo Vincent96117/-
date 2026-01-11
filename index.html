@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>量能監控 V54 - 獵人戰術修正版</title>
+    <title>量能監控 V54 - 終極戰術版</title>
     <style>
         body { font-family: sans-serif; background: #0b0e11; color: #eaecef; padding: 10px; margin: 0; overflow-x: hidden; }
         
@@ -80,7 +80,7 @@
     <script>
         let lastPrices = new Map(), btcHistory = [], ethHistory = [];
         let firstDetectedPrices = new Map(), maxPriceRecorded = new Map(), burstHistory = [];
-        let manualPivotList = [], blacklist = new Set(), trendBlacklist = new Set(); // 新增強勢榜黑名單
+        let manualPivotList = [], blacklist = new Set(), trendBlacklist = new Set();
         let timeLeft = 5;
 
         function getSimulatedMA(price, change24h) {
@@ -92,7 +92,6 @@
             try {
                 const resp = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
                 const data = await resp.json();
-                // 這裡門檻依照要求改為 0.0005 (0.05%)
                 let highFunding = data
                     .filter(i => Math.abs(parseFloat(i.lastFundingRate)) >= 0.0005) 
                     .sort((a, b) => Math.abs(parseFloat(b.lastFundingRate)) - Math.abs(parseFloat(a.lastFundingRate)))
@@ -149,8 +148,8 @@
                     let secChg = lastPrices.has(symbol) ? ((curP - lastPrices.get(symbol)) / lastPrices.get(symbol)) * 100 : 0;
                     lastPrices.set(symbol, curP);
 
-                    // --- 修正處 1：瞬間變動門檻改為 1.5% ---
-                    if (secChg >= 1.5 && vol24h > 5000000) {
+                    // --- 瞬間變動門檻改為 1.0% ---
+                    if (secChg >= 1.0 && vol24h > 5000000) {
                         if (!firstDetectedPrices.has(symbol)) { firstDetectedPrices.set(symbol, curP); maxPriceRecorded.set(symbol, curP); playBurst = true; }
                         else if (curP > (maxPriceRecorded.get(symbol) || 0)) { maxPriceRecorded.set(symbol, curP); playBurst = true; }
                         burstHistory = burstHistory.filter(i => i.s !== symbol);
@@ -158,7 +157,6 @@
                         if (burstHistory.length > 12) burstHistory.pop();
                     }
 
-                    // --- 修正處 2：強勢榜加入黑名單過濾 ---
                     if (chg24 > 5.0 && (high - curP)/high < 0.015 && !trendBlacklist.has(symbol)) {
                         trendRes.push({ s: symbol, c: chg24 });
                     }
@@ -192,7 +190,6 @@
         function renderAll(trendRes, awakeRes) {
             document.getElementById('instantBody').innerHTML = burstHistory.map(r => `<tr><td class="symbol">${r.s}</td><td class="up" align="right">+${r.c.toFixed(2)}%</td></tr>`).join('');
             
-            // --- 修正處 3：強勢榜渲染增加刪除按鈕 ---
             document.getElementById('trendBody').innerHTML = trendRes.sort((a,b)=>b.c-a.c).slice(0,12).map(r => `
                 <tr>
                     <td class="symbol">${r.s} <span class="del-btn" onclick="removeTrendSymbol('${r.s}')">×</span></td>
@@ -207,17 +204,8 @@
                 </tr>`).join('');
         }
 
-        // 強勢榜刪除
-        function removeTrendSymbol(s) {
-            trendBlacklist.add(s);
-            run();
-        }
-
-        function removeSymbol(s) { 
-            manualPivotList = manualPivotList.filter(i => i.s !== s); 
-            blacklist.add(s);
-            renderAll([], []); 
-        }
+        function removeTrendSymbol(s) { trendBlacklist.add(s); run(); }
+        function removeSymbol(s) { manualPivotList = manualPivotList.filter(i => i.s !== s); blacklist.add(s); renderAll([], []); }
 
         setInterval(() => { if (--timeLeft <= 0) { timeLeft=5; run(); } document.getElementById('timer').innerText = timeLeft + "s"; }, 1000);
         setInterval(fetchFunding, 30000);
