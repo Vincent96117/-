@@ -2,52 +2,68 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V54 幣圈獵人 - 究極監控版</title>
+    <title>V54 幣圈獵人 - 究極完整版</title>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --twist: #d29922; --strong: #58a6ff; --alert: #f0883e; --news: #f0883e; }
+        /* 完全還原截圖中的配色與視覺細節 */
+        :root { 
+            --bg: #0d1117; 
+            --card: #161b22; 
+            --border: #30363d; 
+            --text: #c9d1d9; 
+            --surge: #3fb950; 
+            --fall: #f85149; 
+            --twist: #d29922; 
+            --strong: #58a6ff; 
+            --news: #f0883e;
+            --fund-alert: #f0883e;
+        }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 10px; margin: 0; font-size: 12px; }
-        .header { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid var(--border); }
         
-        /* 置頂消息面樣式 */
-        .news-banner { background: rgba(240, 136, 62, 0.1); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin: 10px 0; display: flex; gap: 25px; align-items: center; }
-        .news-item { border-left: 2px solid var(--news); padding-left: 10px; }
-        .news-item b { color: var(--news); display: block; margin-bottom: 2px; }
-        .news-time { color: #8b949e; font-size: 11px; }
+        /* 消息面置頂區 - 1:1 照截圖排版 */
+        .news-header { 
+            display: flex; 
+            align-items: center; 
+            background: #1c2128; 
+            border: 1px solid var(--border); 
+            padding: 8px 15px; 
+            margin-bottom: 10px; 
+            border-radius: 4px;
+        }
+        .news-title { color: var(--news); font-weight: bold; margin-right: 20px; font-size: 13px; }
+        .news-box { display: flex; gap: 30px; }
+        .news-box div { border-left: 2px solid var(--news); padding-left: 10px; line-height: 1.4; }
+        .news-box b { color: var(--news); font-size: 12px; display: block; }
+        .news-box span { color: #8b949e; font-size: 10px; }
 
-        .container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; height: 80vh; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; }
-        h2 { font-size: 0.85rem; padding: 10px; margin: 0; border-bottom: 1px solid var(--border); background: #1c2128; }
+        /* 五欄容器佈局 */
+        .container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; height: 85vh; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* 標題圖示與文字配色完全還原 */
+        h2 { font-size: 0.85rem; padding: 12px; margin: 0; border-bottom: 1px solid var(--border); background: #1c2128; display: flex; align-items: center; gap: 5px; }
         .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; }
-        td, th { padding: 6px 4px; border-bottom: 1px solid #21262d; text-align: center; }
-        th { background: #21262d; color: #8b949e; position: sticky; top: 0; font-size: 11px; }
-        .btn-del { background: var(--fall); color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 4px; }
+        td, th { padding: 8px 5px; border-bottom: 1px solid #21262d; text-align: center; }
+        th { background: #21262d; color: #8b949e; position: sticky; top: 0; font-size: 11px; font-weight: normal; }
+        
+        /* 功能性配色 */
+        .btn-del { background: var(--fall); color: white; border: none; border-radius: 2px; cursor: pointer; padding: 2px 6px; font-size: 10px; }
+        .funding-alert { background: #a6611a !important; color: white !important; font-weight: bold; } /* 截圖中的深橘色底 */
         .missing { color: #ff7b72; font-weight: bold; }
-        .pass { color: var(--surge); }
-        .funding-alert { color: #f8e3a1; background: rgba(240,136,62,0.4) !important; font-weight: bold; } /* 強化資費跳色提醒 */
+        .pass { color: var(--surge); font-weight: bold; }
+        .twist-label { color: var(--twist); }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <div>V54 究極版 | 噴發門檻: 1.5% | 2026 戰略佈局</div>
-    <div id="status">連接中...</div>
-</div>
-
-<div class="news-banner">
-    <div style="font-weight:bold; font-size: 14px;">📅 本週重要消息:</div>
-    <div class="news-item">
-        <b>美國 12 月 CPI 數據</b>
-        <span class="news-time">2026/01/13 (週二) 21:30</span>
+<div class="news-header">
+    <div class="news-title">📊 本週重要消息:</div>
+    <div class="news-box">
+        <div><b>美國 12 月 CPI 數據</b><span>2026/01/13 (週二) 21:30</span></div>
+        <div><b>初請失業金人數</b><span>2026/01/15 (週四) 21:30</span></div>
+        <div><b>密大消費者信心指數</b><span>2026/01/16 (週五) 23:00</span></div>
     </div>
-    <div class="news-item">
-        <b>初請失業金人數</b>
-        <span class="news-time">2026/01/15 (週四) 21:30</span>
-    </div>
-    <div class="news-item">
-        <b>密大消費者信心指數</b>
-        <span class="news-time">2026/01/16 (週五) 23:00</span>
-    </div>
+    <div style="margin-left: auto; color: #8b949e;" id="status">● 連接中...</div>
 </div>
 
 <div class="container">
@@ -78,9 +94,8 @@
 </div>
 
 <script>
-    const SURGE_LIMIT = 1.5;
-    const symbols = ['btcusdt', 'ethusdt', 'suiusdt', 'nearusdt', 'opusdt', 'arusdt', 'bnbusdt', 'solusdt'];
-    let dataMap = {}; 
+    const symbols = ['btcusdt', 'ethusdt', 'suiusdt', 'nearusdt', 'opusdt', 'arusdt', 'solusdt', 'bnbusdt'];
+    let dataMap = {};
     let btcChange = 0;
 
     const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${symbols.map(s => `${s}@ticker`).join('/')}`);
@@ -90,69 +105,69 @@
         const s = d.s.replace('USDT', '');
         const p = parseFloat(d.c);
         const p24 = parseFloat(d.P);
-        
-        if(s === 'BTC') btcChange = p24;
+        const v = parseFloat(d.v);
 
-        if (!dataMap[s]) dataMap[s] = { prevP: p, conc: 20, prevConc: 18, bw: 0.05, prevBw: 0.05 };
-        
-        const instChange = ((p - dataMap[s].prevP) / dataMap[s].prevP) * 100;
+        if (s === 'BTC') btcChange = p24;
 
-        // 1. 瞬間噴發
-        if (instChange >= SURGE_LIMIT) {
-            renderRow('surge-list', `<td>${s}</td><td>${p.toFixed(4)}</td><td class="pass">+${instChange.toFixed(2)}%</td>`);
+        if (!dataMap[s]) {
+            dataMap[s] = { lastP: p, conc: 22, prevConc: 21, bw: 0.02, prevBw: 0.02, fund: -0.0126 };
         }
 
-        // 2. 高檔強勢
-        if (p24 > 5.0 && !document.getElementById(`strong-${s}`)) {
+        // 瞬間噴發判斷
+        const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
+        if (instChange >= 1.5) {
+            updateTable('surge-list', `<td>${s}</td><td>${p.toFixed(4)}</td><td class="pass">+${instChange.toFixed(2)}%</td>`);
+        }
+
+        // 高檔強勢
+        if (p24 > 4.5 && !document.getElementById(`strong-${s}`)) {
             const html = `<tr id="strong-${s}"><td>${s}</td><td>${p.toFixed(4)}</td><td>${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">刪</button></td></tr>`;
             document.getElementById('strong-list').insertAdjacentHTML('afterbegin', html);
         }
 
-        // 3. 資費異常 (±0.05 跳色邏輯)
-        const fund = (s === 'SUI') ? -0.0512 : 0.01; // 模擬資費
-        if (Math.abs(fund) >= 0.01) { // 模擬顯示門檻
-            if(!document.getElementById(`fund-${s}`)) {
-                const alertStyle = Math.abs(fund) >= 0.05 ? 'class="funding-alert"' : '';
-                renderRow('fund-list', `<td>${s}</td><td ${alertStyle}>${fund}%</td><td>${fund < 0 ? '空頭擁擠' : '監控中'}</td>`, `fund-${s}`);
+        // 資費異常 (依照約定：±0.05 觸發跳色)
+        const f = (s === 'SUI') ? -0.0512 : 0.01; // 模擬數據，SUI 觸發跳色
+        if (!document.getElementById(`fund-${s}`)) {
+            const isAlert = Math.abs(f) >= 0.05;
+            const style = isAlert ? 'class="funding-alert"' : '';
+            const statusText = isAlert ? '空頭擁擠' : '監控中';
+            updateTable('fund-list', `<td>${s}</td><td ${style}>${f}%</td><td>${statusText}</td>`, `fund-${s}`);
+        }
+
+        // 麻花 / 吸金
+        if (Math.abs(p24) < 1.2) {
+            if (!document.getElementById(`spec-${s}`)) {
+                updateTable('special-list', `<td>${s}</td><td>${p.toFixed(4)}</td><td class="twist-label">低位麻花</td>`, `spec-${s}`);
             }
         }
 
-        // 4. 麻花/吸金 (原本邏輯保留)
-        if (Math.abs(p24) < 1.0) {
-             if(!document.getElementById(`spec-${s}`)) {
-                renderRow('special-list', `<td>${s}</td><td>${p.toFixed(4)}</td><td style="color:var(--twist)">低位麻花</td>`, `spec-${s}`);
-             }
-        }
-
-        // 5. 潛力幣邏輯 (四選三)
+        // 潛力幣邏輯 (新增)
         checkPotential(s, p, p24, dataMap[s]);
 
-        dataMap[s].prevP = p;
+        dataMap[s].lastP = p;
     };
 
     function checkPotential(s, p, p24, cache) {
         const conds = [
-            { id: 'T', lab: '趨勢', pass: p24 > 0 }, 
+            { id: 'T', lab: '趨勢', pass: p24 > 0 },
             { id: 'C', lab: '籌碼', pass: cache.conc > cache.prevConc },
             { id: 'S', lab: '強度', pass: (p24 - btcChange) > 2.0 },
-            { id: 'B', lab: '布林', pass: cache.bw > cache.prevBw }
+            { id: 'B', lab: '布林', pass: cache.bw >= cache.prevBw }
         ];
-
         const passed = conds.filter(c => c.pass);
         const missing = conds.filter(c => !c.pass);
 
         if (passed.length >= 3) {
             const rowId = `pot-${s}`;
-            const missLab = missing.length > 0 ? `<span class="missing">缺:${missing[0].lab}</span>` : `<span class="pass">🚀 ALL</span>`;
-            const html = `<td>${s}</td><td>${passed.length}/4</td><td>${missLab}</td><td>${cache.bw < 0.03 ? '壓縮' : '開口'}</td>`;
-            
-            let row = document.getElementById(rowId);
+            const missText = missing.length > 0 ? `<span class="missing">缺:${missing[0].lab}</span>` : `<span class="pass">🚀 ALL</span>`;
+            const html = `<td>${s}</td><td>${passed.length}/4</td><td>${missText}</td><td>${cache.bw < 0.03 ? '壓縮' : '開口'}</td>`;
+            const row = document.getElementById(rowId);
             if (row) row.innerHTML = html;
             else document.getElementById('potential-list').insertAdjacentHTML('afterbegin', `<tr id="${rowId}">${html}</tr>`);
         }
     }
 
-    function renderRow(id, html, rid = '') {
+    function updateTable(id, html, rid = '') {
         const b = document.getElementById(id);
         b.insertAdjacentHTML('afterbegin', `<tr ${rid ? `id="${rid}"` : ''}>${html}</tr>`);
         if (b.children.length > 20) b.lastElementChild.remove();
