@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V67 獵人增強版 (資費直顯+RS評分)</title>
+    <title>V69 獵人修復版 (資費回歸+權重優化)</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
@@ -19,8 +19,7 @@
         td, th { padding: 6px 2px; border-bottom: 1px solid #21262d; text-align: center; white-space: nowrap; overflow: hidden; }
         .btn-del { background: #333; color: #888; border: none; padding: 1px 6px; cursor: pointer; border-radius: 2px; }
         .funding-tag { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-left: 2px; }
-        .funding-high { background: #a6611a; color: white; }
-        
+        .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
         @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514955; } 100% { background: transparent; } }
         .pot-alert { animation: blink-red 0.5s infinite; border: 1px solid var(--fall) !important; }
     </style>
@@ -51,7 +50,7 @@
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (RS相對強度)</h2><div class="scroll"><table><thead><tr><th style="width:35%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (RS相對強度)</h2><div class="scroll"><table><thead><th style="width:35%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
 <script>
@@ -74,85 +73,80 @@
         }
     }
 
-    // 定期抓取全量資費
-    async function updateAllFunding() {
+    async function updateFunding() {
         try {
             const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
             const data = await res.json();
+            const fundList = document.getElementById('fund-list');
+            const currentFunds = [];
+            
             data.forEach(f => {
                 const s = f.symbol.replace('USDT', '');
-                fundingMap[s] = parseFloat(f.lastFundingRate) * 100;
+                const r = parseFloat(f.lastFundingRate) * 100;
+                fundingMap[s] = r;
+                if (Math.abs(r) >= 0.05) currentFunds.push({ s, r });
             });
-            renderPotTable(); // 更新資費顯示
-        } catch(e) {}
+
+            // 更新獨立資費欄位 (修復點)
+            fundList.innerHTML = '';
+            currentFunds.sort((a, b) => Math.abs(b.r) - Math.abs(a.r)).slice(0, 5).forEach(f => {
+                fundList.insertAdjacentHTML('beforeend', `<tr><td>${f.s}</td><td class="funding-high">${f.r.toFixed(4)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
+            });
+            renderPotTable(); 
+        } catch(e) { console.error("Funding error", e); }
     }
-    setInterval(updateAllFunding, 10000);
-    updateAllFunding();
+    setInterval(updateFunding, 10000);
+    updateFunding();
 
     const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
-
     ws.onmessage = (e) => {
         const tickers = JSON.parse(e.data);
-        let up = 0, down = 0;
-        let candidates = [];
-
+        let up = 0, down = 0, candidates = [];
         tickers.forEach(d => {
             if (d.s.endsWith('USDT') && !d.s.includes('UPUSDT') && !d.s.includes('DOWNUSDT')) {
                 const s = d.s.replace('USDT', ''), p = parseFloat(d.c), p24 = parseFloat(d.P);
                 const vol = parseFloat(d.q), h = parseFloat(d.h), l = parseFloat(d.l);
                 const range = ((h - l) / l) * 100;
-                
                 p24 > 0 ? up++ : down++;
-
-                if (s === 'BTC') { 
-                    btcChange = p24; 
-                    document.getElementById('btc-live').innerText = `BTC: ${p} (${p24}%)`; 
-                }
+                if (s === 'BTC') { btcChange = p24; document.getElementById('btc-live').innerText = `BTC: ${p} (${p24}%)`; }
                 if (s === 'ETH') document.getElementById('eth-live').innerText = `ETH: ${p} (${p24}%)`;
 
                 if (!dataMap[s]) dataMap[s] = { lastP: p };
                 const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
-
                 if (instChange >= 1.0) { renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`); playBeep(1); }
                 if (p24 > 8.0) updateStrong(s, p, p24);
 
-                // 潛力監控核心 (加入 RS 相對強度評分)
-                if (vol > 8000000 && p24 >= 1.0 && p24 <= 4.0 && range <= 6.0) {
-                    // RS 評分：領先 BTC 的幅度
-                    const rsScore = (p24 - btcChange) > 0 ? (p24 - btcChange) * 20 : 0;
-                    const baseScore = (vol / 8000000 * 30) + ((6 - range) * 10);
-                    const finalScore = Math.min(100, Math.round(baseScore + rsScore));
-                    
-                    candidates.push({ s, rawScore: finalScore, status: (p24 > btcChange ? '領先大盤' : '橫盤轉強') });
+                // 權重優化：領先大盤 3% 才是滿分
+                if (vol > 8000000 && p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
+                    const leadDiff = p24 - btcChange;
+                    const volBase = Math.min(25, (vol / 8000000) * 8);
+                    const squeezeBase = (6.5 - range) * 4;
+                    const rsScore = leadDiff > 0 ? Math.min(50, leadDiff * 16.6) : 0;
+                    const finalScore = Math.round(volBase + squeezeBase + rsScore);
+                    candidates.push({ s, rawScore: finalScore, status: leadDiff > 1.5 ? '領先大盤' : '橫盤轉強' });
                 }
                 dataMap[s].lastP = p;
             }
         });
-
         const trendEl = document.getElementById('market-trend');
         trendEl.innerText = up > down ? "目前上漲較多" : "目前下跌較多";
         trendEl.style.color = up > down ? "var(--surge)" : "var(--fall)";
         document.getElementById('up-cnt').innerText = up; document.getElementById('down-cnt').innerText = down;
-
         updatePotential(candidates);
     };
 
     function updateStrong(s, p, p24) {
         const list = document.getElementById('strong-list');
         let row = document.getElementById(`strong-${s}`);
-        if (!row) {
-            list.insertAdjacentHTML('beforeend', `<tr id="strong-${s}"><td>${s}</td><td>${p}</td><td style="color:var(--surge)">${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
-        } else { row.cells[1].innerText = p; row.cells[2].innerText = `${p24}%`; }
+        if (!row) { list.insertAdjacentHTML('beforeend', `<tr id="strong-${s}"><td>${s}</td><td>${p}</td><td style="color:var(--surge)">${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`); } 
+        else { row.cells[1].innerText = p; row.cells[2].innerText = `${p24}%`; }
     }
 
     function updatePotential(candidates) {
         if (lockedPotList.length >= 10) { refreshScores(); return; }
         candidates.sort((a, b) => b.rawScore - a.rawScore);
         candidates.forEach(c => {
-            if (lockedPotList.length < 10 && !lockedPotList.find(i => i.s === c.s)) {
-                lockedPotList.push(c);
-                renderPotTable();
-            }
+            if (lockedPotList.length < 10 && !lockedPotList.find(i => i.s === c.s)) { lockedPotList.push(c); renderPotTable(); }
         });
     }
 
@@ -164,14 +158,7 @@
             const fClass = Math.abs(fRate) >= 0.05 ? 'funding-high' : '';
             const alertClass = item.rawScore >= 80 ? 'pot-alert' : '';
             if (item.rawScore >= 80) playBeep(2);
-
-            list.insertAdjacentHTML('beforeend', `
-                <tr id="pot-${item.s}" class="${alertClass}">
-                    <td>${item.s} <span class="funding-tag ${fClass}">${fRate.toFixed(3)}%</span></td>
-                    <td style="color:var(--alert);font-weight:bold">${item.rawScore}</td>
-                    <td>${item.status}</td>
-                    <td><button class="btn-del" onclick="removePot('${item.s}')">✕</button></td>
-                </tr>`);
+            list.insertAdjacentHTML('beforeend', `<tr id="pot-${item.s}" class="${alertClass}"><td>${item.s} <span class="funding-tag ${fClass}">${fRate.toFixed(3)}%</span></td><td style="color:${item.rawScore>=95?'#ff4444':'var(--alert)'};font-weight:bold">${item.rawScore}</td><td>${item.status}</td><td><button class="btn-del" onclick="removePot('${item.s}')">✕</button></td></tr>`);
         });
     }
 
@@ -179,15 +166,17 @@
         lockedPotList.forEach(item => {
             const row = document.getElementById(`pot-${item.s}`);
             if (row) {
-                if (item.rawScore >= 80) { row.classList.add('pot-alert'); } 
-                else { row.classList.remove('pot-alert'); }
+                const fRate = fundingMap[item.s] || 0;
+                const fClass = Math.abs(fRate) >= 0.05 ? 'funding-high' : '';
+                row.cells[0].querySelector('.funding-tag').className = `funding-tag ${fClass}`;
+                row.cells[0].querySelector('.funding-tag').innerText = `${fRate.toFixed(3)}%`;
                 row.cells[1].innerText = item.rawScore;
+                if (item.rawScore >= 80) row.classList.add('pot-alert'); else row.classList.remove('pot-alert');
             }
         });
     }
 
     function removePot(s) { lockedPotList = lockedPotList.filter(i => i.s !== s); renderPotTable(); }
-
     function renderRow(id, html) {
         const b = document.getElementById(id);
         b.insertAdjacentHTML('afterbegin', `<tr>${html}<td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
