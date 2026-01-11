@@ -2,62 +2,16 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V78 獵人終極版 (視覺修正)</title>
+    <title>V80 獵人終極推播版 (Bark 已內置)</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
-        
-        /* 修復後的跑馬燈容器 */
-        .news-banner { 
-            background: #1a1a1a; 
-            border-bottom: 1px solid #444; 
-            height: 28px; 
-            display: flex; 
-            align-items: center; 
-            overflow: hidden; 
-            position: relative; 
-        }
-        .calendar-label { 
-            background: #d29922; 
-            color: #000; 
-            font-weight: bold; 
-            padding: 0 10px; 
-            height: 100%; 
-            display: flex; 
-            align-items: center; 
-            font-size: 11px; 
-            white-space: nowrap; 
-            position: absolute; /* 固定在最左側 */
-            left: 0;
-            top: 0;
-            z-index: 10; /* 確保在文字上方 */
-            box-shadow: 5px 0 10px rgba(0,0,0,0.5); /* 增加陰影擋住穿過的文字 */
-        }
-        .news-container {
-            flex: 1;
-            margin-left: 100px; /* 預留給標籤的寬度，防止重疊 */
-            overflow: hidden;
-            display: flex;
-        }
-        #calendar-content { 
-            display: flex; 
-            white-space: nowrap; 
-            color: #fff; 
-            font-size: 12px; 
-            animation: scroll-cal 40s linear infinite; 
-        }
-        @keyframes scroll-cal { 
-            0% { transform: translateX(50%); } /* 從右側進入 */
-            100% { transform: translateX(-100%); } 
-        }
-        .cal-item { margin-right: 50px; color: #00ff00; }
-        .cal-item b { color: #ffdd00; }
-
-        /* 其餘功能樣式保持不變 */
+        .news-banner { background: #1a1a1a; padding: 6px 15px; border: 1px solid #444; border-radius: 4px; margin: 4px; font-size: 12px; display: flex; gap: 20px; color: #fff; }
+        .news-item b { color: var(--alert); }
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 4px 10px; border-bottom: 1px solid var(--border); height: 32px; }
         .btc-eth-status { display: flex; gap: 12px; font-weight: bold; font-size: 12px; }
         .refresh-btn { background: #1f6feb; color: white; border: none; padding: 2px 10px; cursor: pointer; border-radius: 3px; }
-        .container { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr 1.6fr; gap: 4px; height: calc(100vh - 120px); padding: 4px; box-sizing: border-box; }
+        .container { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr 1.6fr; gap: 4px; height: calc(100vh - 125px); padding: 4px; box-sizing: border-box; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; min-width: 0; }
         h2 { font-size: 0.8rem; padding: 8px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); }
         .scroll { flex: 1; overflow-y: auto; }
@@ -68,180 +22,166 @@
         .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
         @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514955; } 100% { background: transparent; } }
         .pot-alert { animation: blink-red 0.5s infinite; border: 1px solid var(--fall) !important; }
-        .check-tool { background: #161b22; border: 1px solid #444; margin: 4px; padding: 8px; border-radius: 4px; display: flex; align-items: center; gap: 15px; }
-        .check-input { background: #000; border: 1px solid #58a6ff; color: #fff; padding: 4px 8px; border-radius: 3px; width: 100px; text-transform: uppercase; }
-        .check-btn { background: #238636; color: white; border: none; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; }
-        #check-result { font-size: 12px; font-weight: bold; color: #58a6ff; }
+        .tool-zone { display: flex; gap: 4px; padding: 4px; }
+        .bark-tool, .check-tool { background: #161b22; border: 1px solid #444; padding: 6px; border-radius: 4px; display: flex; align-items: center; gap: 8px; flex: 1; }
+        .check-input, .bark-input { background: #000; border: 1px solid #444; color: #fff; padding: 3px 6px; border-radius: 3px; font-size: 10px; }
     </style>
 </head>
 <body>
 
 <div class="news-banner">
-    <div class="calendar-label">📅 自動財經日曆</div>
-    <div class="news-container">
-        <div id="calendar-content">同步中...</div>
-    </div>
+    <div class="news-item"><b>📢 重要日程:</b></div>
+    <div class="news-item">01/13 (二) 21:30 <b>US CPI 數據</b></div>
+    <div class="news-item">01/15 (四) 21:30 <b>初請失業金</b></div>
 </div>
 
 <div class="header-main">
-    <div style="display:flex; align-items:center;">
-        <div class="btc-eth-status">
-            <span id="btc-live" style="color:#f2a900">BTC: -- (--)</span>
-            <span id="eth-live" style="color:#627eea">ETH: -- (--)</span>
-        </div>
-        <div class="market-breadth" style="margin-left:15px; border-left: 1px solid #444; padding-left: 10px;">
-            市場狀態: <span id="market-trend">--</span> (上: <span id="up-cnt">--</span> | 下: <span id="down-cnt">--</span>)
-        </div>
+    <div class="btc-eth-status">
+        <span id="btc-live" style="color:#f2a900">BTC: -- (--)</span>
+        <span id="eth-live" style="color:#627eea">ETH: -- (--)</span>
+        <span style="margin-left:10px; font-size:11px; color:#888">市場: <span id="market-trend">--</span></span>
     </div>
-    <button class="refresh-btn" onclick="location.reload()">🔄 刷新重置</button>
+    <button class="refresh-btn" onclick="location.reload()">🔄 刷新網頁</button>
 </div>
 
 <div class="container">
-    <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (終極修正版)</h2><div class="scroll"><table><thead><th style="width:38%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (60/80 雙階推播)</h2><div class="scroll"><table><thead><th style="width:38%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
-<div class="check-tool">
-    <b>🔍 體檢工具：</b>
-    <input type="text" id="manual-symbol" class="check-input" placeholder="幣種" onkeydown="if(event.key==='Enter') runCheck()">
-    <button class="check-btn" onclick="runCheck()">開始評分</button>
-    <div id="check-result">輸入代碼檢測評分...</div>
+<div class="tool-zone">
+    <div class="bark-tool">
+        <b>🍎 iPhone Bark 推播:</b>
+        <span id="bark-status" style="color:var(--surge)">✅ 監控中 (Key: KQP2...axH)</span>
+    </div>
+    <div class="check-tool">
+        <b>🔍 體檢工具:</b>
+        <input type="text" id="manual-symbol" class="check-input" placeholder="幣種(如 SOL)" style="width:70px">
+        <button class="refresh-btn" onclick="runCheck()">進行評分</button>
+        <div id="check-result"></div>
+    </div>
 </div>
 
 <script>
-    let dataMap = {}, btcChange = 0, fundingMap = {}, lockedPotList = [], fullMarketData = [], sessionBlacklist = new Set();
+    // 你的專屬 Bark Key 已內置
+    const MY_BARK_KEY = 'KQP2fTbTfPp4HnhQSYNaxH';
+    let btcChange = 0, fundingMap = {}, lockedPotList = [], dataMap = {}, fullTickers = [];
+    let pushed60 = new Set(), pushed80 = new Set(); 
+
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(n) { for(let i=0; i<n; i++) setTimeout(() => { const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sine'; o.frequency.value=880; g.gain.setValueAtTime(0.1, audioCtx.currentTime); o.start(); o.stop(audioCtx.currentTime+0.1); }, i*200); }
 
-    function playBeep(times) {
-        for(let i=0; i<times; i++) {
-            setTimeout(() => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.type = 'sine'; osc.frequency.value = 880;
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
-            }, i * 200);
-        }
+    async function sendBark(title, body) {
+        const url = `https://api.day.app/${MY_BARK_KEY}/${encodeURIComponent(title)}/${encodeURIComponent(body)}?group=HunterV80&sound=calypso`;
+        fetch(url).catch(e => console.log("Bark Fail"));
     }
 
-    async function updateCalendar() {
-        const events = [
-            { time: "01/13 21:30", name: "美國 12 月 CPI 年率" },
-            { time: "01/15 21:30", name: "美國初請失業金人數" },
-            { time: "01/16 23:00", name: "密大消費者信心指數" }
-        ];
-        // 重複三次確保長度足夠循環
-        document.getElementById('calendar-content').innerHTML = [...events, ...events, ...events].map(e => `<div class="cal-item"><b>[${e.time}]</b> ${e.name}</div>`).join('');
-    }
-    updateCalendar();
+    // 初始化連線成功推播
+    sendBark("🚀 獵人系統啟動", "數據連線成功，開始監控 60/80 訊號");
 
     async function updateFunding() {
         try {
             const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
             const data = await res.json();
-            const currentFunds = [];
+            const list = document.getElementById('fund-list');
+            let current = [];
             data.forEach(f => {
-                const s = f.symbol.replace('USDT', ''), r = parseFloat(f.lastFundingRate) * 100;
+                const s = f.symbol.replace('USDT',''), r = parseFloat(f.lastFundingRate)*100;
                 fundingMap[s] = r;
-                if (Math.abs(r) >= 0.05) currentFunds.push({ s, r });
+                if(Math.abs(r) >= 0.05) current.push({s, r});
             });
-            const fundList = document.getElementById('fund-list'); fundList.innerHTML = '';
-            currentFunds.sort((a, b) => Math.abs(b.r) - Math.abs(a.r)).slice(0, 5).forEach(f => {
-                fundList.insertAdjacentHTML('beforeend', `<tr><td>${f.s}</td><td class="funding-high">${f.r.toFixed(4)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
+            list.innerHTML = '';
+            current.sort((a,b) => Math.abs(b.r)-Math.abs(a.r)).slice(0,5).forEach(f => {
+                list.insertAdjacentHTML('beforeend', `<tr><td>${f.s}</td><td class="funding-high">${f.r.toFixed(4)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
             });
-            renderPotTable(); 
+            renderPot();
         } catch(e) {}
     }
     setInterval(updateFunding, 10000); updateFunding();
 
-    const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
-    ws.onmessage = (e) => {
-        const tickers = JSON.parse(e.data); fullMarketData = tickers;
-        let up = 0, down = 0, candidates = [];
-        tickers.forEach(d => {
-            if (d.s.endsWith('USDT') && !d.s.includes('UPUSDT') && !d.s.includes('DOWNUSDT')) {
-                const s = d.s.replace('USDT', ''), p = parseFloat(d.c), p24 = parseFloat(d.P);
-                const vol = parseFloat(d.q), range = ((parseFloat(d.h)-parseFloat(d.l))/parseFloat(d.l))*100;
-                p24 > 0 ? up++ : down++;
-                if (s === 'BTC') { btcChange = p24; document.getElementById('btc-live').innerText = `BTC: ${p} (${p24}%)`; }
-                if (s === 'ETH') document.getElementById('eth-live').innerText = `ETH: ${p} (${p24}%)`;
-                if (!dataMap[s]) dataMap[s] = { lastP: p };
-                const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
-                if (instChange >= 1.0) { renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`); playBeep(1); }
-                if (p24 > 8.0) updateStrong(s, p, p24);
-                if (!sessionBlacklist.has(s) && vol > 8000000 && p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
-                    const score = calculateScore(p24, vol, range);
-                    candidates.push({ s, rawScore: score, status: range < 3.5 ? '籌碼高度集中' : ( (p24 - btcChange) > 1.5 ? '放量領先' : '底部蓄勢') });
+    function connectWS() {
+        const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
+        ws.onmessage = (e) => {
+            const tickers = JSON.parse(e.data); fullTickers = tickers;
+            let up=0, down=0, candidates=[];
+            tickers.forEach(d => {
+                if(d.s.endsWith('USDT') && !d.s.includes('UPUSDT') && !d.s.includes('DOWNUSDT')) {
+                    const s = d.s.replace('USDT',''), p = parseFloat(d.c), p24 = parseFloat(d.P), vol = parseFloat(d.q), h = parseFloat(d.h), l = parseFloat(d.l), range = ((h-l)/l)*100;
+                    p24 > 0 ? up++ : down++;
+                    if(s==='BTC') { btcChange=p24; document.getElementById('btc-live').innerText=`BTC: ${p} (${p24}%)`; }
+                    if(s==='ETH') document.getElementById('eth-live').innerText=`ETH: ${p} (${p24}%)`;
+                    
+                    if(!dataMap[s]) dataMap[s]={lp:p};
+                    const inst = ((p-dataMap[s].lp)/dataMap[s].lp)*100;
+                    if(inst>=1.0) { renderSurge(s, inst); playBeep(1); }
+                    if(p24>8.0) updateStrong(s, p, p24);
+
+                    if(vol > 8000000 && p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
+                        const score = calcScore(p24, vol, range);
+                        candidates.push({s, score, range, p24, status: range<3.5 ? '籌碼集中' : (p24-btcChange>1.5 ? '放量領先' : '蓄勢中')});
+                    }
+                    dataMap[s].lp=p;
                 }
-                dataMap[s].lastP = p;
-            }
-        });
-        document.getElementById('up-cnt').innerText = up; document.getElementById('down-cnt').innerText = down;
-        updatePotential(candidates);
-    };
+            });
+            updatePotential(candidates);
+        };
+        ws.onclose = () => setTimeout(connectWS, 3000);
+    }
+    connectWS();
 
-    function calculateScore(p24, vol, range) {
-        const leadDiff = p24 - btcChange, rsScore = leadDiff > 0 ? Math.min(40, leadDiff * 15) : 0;
-        const squeezeScore = Math.max(0, (6.5 - range) * 3);
-        let chipScore = Math.min(40, (vol / 12000000) * 15);
-        if (vol > 20000000 && range < 4.0) chipScore += 10;
-        return Math.min(100, Math.round(rsScore + squeezeScore + chipScore));
+    function calcScore(p24, vol, range) {
+        const rs = (p24-btcChange)>0 ? Math.min(40, (p24-btcChange)*15) : 0;
+        const sq = Math.max(0, (6.5-range)*3);
+        let chip = Math.min(40, (vol/12000000)*15);
+        if(vol>20000000 && range<4.0) chip += 10;
+        return Math.min(100, Math.round(rs+sq+chip));
     }
 
-    function updatePotential(candidates) {
-        refreshScores();
-        candidates.sort((a, b) => b.rawScore - a.rawScore);
-        candidates.forEach(c => {
-            if (lockedPotList.length < 10 && !lockedPotList.find(i => i.s === c.s) && !sessionBlacklist.has(c.s)) {
-                lockedPotList.push(c); renderPotTable();
+    function updatePotential(cands) {
+        cands.sort((a,b)=>b.score-a.score);
+        cands.forEach(c => {
+            let item = lockedPotList.find(i=>i.s===c.s);
+            if(!item && lockedPotList.length < 10) { item = c; lockedPotList.push(item); }
+            if(item) {
+                item.score = c.score; item.status = c.status;
+                const fr = fundingMap[item.s] || 0;
+                const fAlert = Math.abs(fr)>=0.05 ? `⚠️資費:${fr.toFixed(3)}%` : `(${fr.toFixed(3)}%)`;
+
+                if(item.score >= 60 && item.score < 80 && !pushed60.has(item.s)) {
+                    sendBark(`👀 觀察區: ${item.s} (${item.score}分)`, `24h:${item.p24}% | 震:${item.range.toFixed(2)}%\n${item.status} ${fAlert}`);
+                    pushed60.add(item.s); playBeep(1);
+                }
+                if(item.score >= 80 && !pushed80.has(item.s)) {
+                    sendBark(`🎯 蛋糕成熟: ${item.s} (${item.score}分)`, `🔥 準備體檢！\n24h:${item.p24}% | 震:${item.range.toFixed(2)}%\n${fAlert}`);
+                    pushed80.add(item.s); playBeep(2);
+                }
             }
         });
+        renderPot();
     }
 
-    function renderPotTable() {
+    function renderPot() {
         const list = document.getElementById('potential-list'); list.innerHTML = '';
         lockedPotList.forEach(item => {
-            const fRate = fundingMap[item.s] || 0, fClass = Math.abs(fRate) >= 0.05 ? 'funding-high' : '';
-            if (item.rawScore >= 80) playBeep(2);
-            list.insertAdjacentHTML('beforeend', `<tr id="pot-${item.s}" class="${item.rawScore >= 80 ? 'pot-alert' : ''}"><td>${item.s} <span class="funding-tag ${fClass}">${fRate.toFixed(3)}%</span></td><td style="color:${item.rawScore>=95?'#ff4444':'var(--alert)'};font-weight:bold">${item.rawScore}</td><td>${item.status}</td><td><button class="btn-del" onclick="removePot('${item.s}')">✕</button></td></tr>`);
+            const fr = fundingMap[item.s] || 0;
+            const fC = Math.abs(fr)>=0.05 ? 'funding-high' : '';
+            list.insertAdjacentHTML('beforeend', `<tr class="${item.score>=80?'pot-alert':''}"><td>${item.s} <span class="funding-tag ${fC}">${fr.toFixed(3)}%</span></td><td style="color:${item.score>=95?'#ff4444':'var(--alert)'}; font-weight:bold">${item.score}</td><td>${item.status}</td><td><button class="btn-del" onclick="removePot('${item.s}')">✕</button></td></tr>`);
         });
     }
 
-    function refreshScores() {
-        lockedPotList.forEach(item => {
-            const row = document.getElementById(`pot-${item.s}`);
-            if (row) {
-                const fRate = fundingMap[item.s] || 0, fTag = row.cells[0].querySelector('.funding-tag');
-                if(fTag) { fTag.className = `funding-tag ${Math.abs(fRate)>=0.05?'funding-high':''}`; fTag.innerText = `${fRate.toFixed(3)}%`; }
-                row.cells[1].innerText = item.rawScore;
-                if (item.rawScore >= 80) row.classList.add('pot-alert'); else row.classList.remove('pot-alert');
-            }
-        });
-    }
-
-    function removePot(s) { sessionBlacklist.add(s); lockedPotList = lockedPotList.filter(i => i.s !== s); renderPotTable(); }
-
+    function removePot(s) { lockedPotList = lockedPotList.filter(i=>i.s!==s); pushed60.delete(s); pushed80.delete(s); renderPot(); }
+    function renderSurge(s, i) { const b = document.getElementById('surge-list'); b.insertAdjacentHTML('afterbegin', `<tr><td>${s}</td><td style="color:var(--surge)">+${i.toFixed(2)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`); if(b.children.length>12) b.lastElementChild.remove(); }
+    function updateStrong(s, p, p24) { const b = document.getElementById('strong-list'); let r = [...b.querySelectorAll('tr')].find(x=>x.innerHTML.includes(s)); if(!r) { b.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td>${p}</td><td style="color:var(--surge)">${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`); } else { r.cells[1].innerText=p; r.cells[2].innerText=`${p24}%`; } }
     function runCheck() {
-        const sym = document.getElementById('manual-symbol').value.toUpperCase().trim();
-        const target = fullMarketData.find(d => d.s === sym + 'USDT');
-        if (!target) return;
-        const p24 = parseFloat(target.P), vol = parseFloat(target.q), range = ((parseFloat(target.h)-parseFloat(target.l))/parseFloat(target.l))*100;
-        document.getElementById('check-result').innerText = `${sym}：評分 ${calculateScore(p24, vol, range)} | 漲: ${p24}% | 震: ${range.toFixed(2)}%`;
-    }
-
-    function updateStrong(s, p, p24) {
-        const list = document.getElementById('strong-list');
-        let row = document.getElementById(`strong-${s}`);
-        if (!row) { list.insertAdjacentHTML('beforeend', `<tr id="strong-${s}"><td>${s}</td><td>${p}</td><td style="color:var(--surge)">${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`); } 
-        else { row.cells[1].innerText = p; row.cells[2].innerText = `${p24}%`; }
-    }
-
-    function renderRow(id, html) {
-        const b = document.getElementById(id); b.insertAdjacentHTML('afterbegin', `<tr>${html}<td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
-        if (b.children.length > 20) b.lastElementChild.remove();
+        const sym = document.getElementById('manual-symbol').value.toUpperCase();
+        const t = fullTickers.find(x=>x.s===sym+'USDT');
+        const res = document.getElementById('check-result');
+        if(!t) { res.innerText="無資料"; return; }
+        const p24=parseFloat(t.P), vol=parseFloat(t.q), range=((parseFloat(t.h)-parseFloat(t.l))/parseFloat(t.l))*100;
+        const score=calcScore(p24, vol, range);
+        res.innerHTML=`<b style="color:var(--alert)">${score}分</b>`;
     }
 </script>
 </body>
