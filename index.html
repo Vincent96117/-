@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V94 獵人舊榜核心版</title>
+    <title>HUNTER PRO | 實時監控</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; --double: #f2a900; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -22,7 +22,7 @@
         .status-tag { font-size: 9px; color: #888; display: block; margin-top: 2px; }
         .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
         .funding-tag { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-left: 2px; }
-        .double-tag { color: var(--double); font-weight: bold; font-size: 12px; }
+        .double-tag { color: var(--double); font-weight: bold; }
         .pot-alert { animation: blink-red 1s infinite; border: 1px solid var(--fall) !important; }
         @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514933; } 100% { background: transparent; } }
     </style>
@@ -30,7 +30,7 @@
 <body>
 
 <div class="top-calendar">
-    <div class="cal-header"><span>📅 USD 經濟日曆</span><span id="cal-status">OK</span></div>
+    <div class="cal-header"><span>📅 USD 重要日曆</span><span id="cal-status">OK</span></div>
     <div class="cal-scroll" id="calendar-content"></div>
 </div>
 
@@ -38,8 +38,8 @@
     <div style="font-weight:bold; font-size:12px;">
         <span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | <span style="color:#627eea">ETH: <span id="eth-live">--</span></span>
     </div>
-    <div style="color:var(--double); font-weight:bold;">V94 HUNTER | 舊榜核心邏輯版</div>
-    <button onclick="location.reload()" style="cursor:pointer; font-size:10px;">🔄 重整</button>
+    <div style="color:var(--strong); font-weight:bold; letter-spacing: 1px;">HUNTER PRO | 實時盤面監控系統</div>
+    <button onclick="location.reload()" style="cursor:pointer; font-size:10px; background: #333; color: #fff; border: 1px solid #555; padding: 2px 8px; border-radius: 3px;">🔄 系統重整</button>
 </div>
 
 <div class="container">
@@ -48,10 +48,10 @@
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資金費率</h2><div class="scroll"><table><tbody id="fund-list"></tbody></table></div></div>
     
     <div class="card">
-        <h2 style="color:#bc8cff">💎 舊版監控 (符合即上榜+推播)</h2>
+        <h2 style="color:#bc8cff">💎 核心量能監控</h2>
         <div style="height: 48%;" class="scroll"><table id="table-old"></table></div>
         <div class="split-line" style="height:2px;background:#444"></div>
-        <h2 style="color:#58a6ff">🌀 新版爆發 (純爆發補位)</h2>
+        <h2 style="color:#58a6ff">🌀 趨勢放量監控</h2>
         <div style="height: 48%;" class="scroll"><table id="table-new"></table></div>
     </div>
 </div>
@@ -59,7 +59,7 @@
 <script>
     const MY_BARK_KEY = 'KQP2fTbTfPp4HnhQSYNaxH';
     let btcChange = 0, fundingMap = {}, dataMap = {}, potOld = [], potNew = [];
-    let strongSet = new Set(), pushedOldSet = new Set();
+    let strongSet = new Set(), pushedSet = new Set();
 
     function sendPush(title, content) {
         const url = `https://api.day.app/${MY_BARK_KEY}/${encodeURIComponent(title)}/${encodeURIComponent(content)}?group=Hunter&sound=calypso`;
@@ -114,43 +114,50 @@
                     const s = d.s.replace('USDT',''), p = parseFloat(d.c), p24 = parseFloat(d.P), vol = parseFloat(d.q), h = parseFloat(d.h), l = parseFloat(d.l), range = ((h-l)/l)*100;
                     if(s==='BTC') { btcChange=p24; document.getElementById('btc-live').innerText=`${p} (${p24}%)`; }
                     if(s==='ETH') document.getElementById('eth-live').innerText=`${p} (${p24}%)`;
-                    if(!dataMap[s]) { dataMap[s] = {lp:p, avg4hVol: 0}; dataMap[s].avg4hVol = await getBaseVolume(s); }
+                    
+                    if(!dataMap[s]) { 
+                        dataMap[s] = {lp:p, avg4hVol: 0}; 
+                        dataMap[s].avg4hVol = await getBaseVolume(s); 
+                    }
 
-                    // 高檔推播
+                    // 強勢區監控
                     const sl = document.getElementById('strong-list');
                     let er = [...sl.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
                     if (p24 > 8.0) {
                         if (!er) {
                             sl.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td style="color:var(--surge)">${p24}%</td></tr>`);
-                            if(!strongSet.has(s)) { sendPush(`🔥 高檔新進: ${s}`, `漲幅 ${p24}%`); strongSet.add(s); }
+                            if(!strongSet.has(s)) { sendPush(`🔥 高檔強勢新幣: ${s}`, `漲幅達 ${p24}%`); strongSet.add(s); }
                         } else er.cells[1].innerText = `${p24}%`;
                     } else if (er) { er.remove(); strongSet.delete(s); }
 
-                    // 核心評分
+                    // 瞬時異動
+                    const inst = ((p-dataMap[s].lp)/dataMap[s].lp)*100;
+                    if(inst>=1.2) {
+                        const b = document.getElementById('surge-list');
+                        b.insertAdjacentHTML('afterbegin', `<tr><td>${s}</td><td style="color:var(--surge)">+${inst.toFixed(2)}%</td></tr>`);
+                        if(b.children.length>12) b.lastElementChild.remove();
+                    }
+
+                    // 核心與趨勢策略
                     if(p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
                         const rsS = (p24 - btcChange) > 0 ? Math.min(45, (p24 - btcChange) * 11) : 0;
                         const sqS = Math.max(0, Math.min(30, (6.5 - range) * 4.6));
                         const volRatio = (vol / 6) / dataMap[s].avg4hVol;
                         const desc = `${p24>btcChange?'超盤':'隨盤'} | 縮${range.toFixed(1)}% | ${volRatio.toFixed(1)}x`;
 
-                        const scoreO = (vol > 8000000) ? Math.min(100, Math.round(rsS + sqS + Math.min(25, (vol/10000000)*5) + 5)) : 0;
-                        const scoreN = Math.min(100, Math.round(rsS + sqS + Math.min(25, (volRatio / 2) * 15)));
+                        const scoreCore = (vol > 8000000) ? Math.min(100, Math.round(rsS + sqS + Math.min(25, (vol/10000000)*5) + 5)) : 0;
+                        const scoreTrend = Math.min(100, Math.round(rsS + sqS + Math.min(25, (volRatio / 1.5) * 12)));
 
-                        // 1. 舊榜處理 (主邏輯)
-                        if(scoreO >= 20) {
-                            // 檢查是否同時符合新榜條件
-                            const isDouble = (scoreN >= 20);
-                            updateList(potOld, {s, score:scoreO, desc, isDouble, type:'old'}, 'table-old');
-                            // 如果舊榜有了，新榜就不重複顯示
+                        if(scoreCore >= 20) {
+                            updateList(potOld, {s, score:scoreCore, desc, isDouble:(scoreTrend>=20), type:'core'}, 'table-old');
                             potNew = potNew.filter(x => x.s !== s);
                         } else {
                             potOld = potOld.filter(x => x.s !== s);
                         }
 
-                        // 2. 新榜處理 (僅顯示舊榜沒抓到的)
-                        if(scoreN >= 20 && !potOld.find(x => x.s === s)) {
-                            updateList(potNew, {s, score:scoreN, desc, isDouble:false, type:'new'}, 'table-new');
-                        } else if(scoreN < 20) {
+                        if(scoreTrend >= 20 && !potOld.find(x => x.s === s)) {
+                            updateList(potNew, {s, score:scoreTrend, desc, isDouble:false, type:'trend'}, 'table-new');
+                        } else if(scoreTrend < 20) {
                             potNew = potNew.filter(x => x.s !== s);
                         }
                     }
@@ -170,9 +177,9 @@
         }
         if(item) {
             item.score = c.score; item.desc = c.desc; item.isDouble = c.isDouble;
-            if(c.type === 'old' && isNew && !pushedOldSet.has(item.s)) {
-                sendPush(`💎 舊榜新面孔: ${item.s}`, `${item.isDouble?'[雙重驗證] ':''}${item.score}分 | ${item.desc}`);
-                pushedOldSet.add(item.s);
+            if(c.type === 'core' && isNew && !pushedSet.has(item.s)) {
+                sendPush(`💎 監控目標出現: ${item.s}`, `${item.isDouble?'[雙重確認] ':''}${item.score}分 | ${item.desc}`);
+                pushedSet.add(item.s);
             }
         }
         renderTable(list, eid);
@@ -190,7 +197,7 @@
                     <span class="status-tag">${it.desc}</span>
                 </td>
                 <td style="color:var(--alert);font-weight:bold;font-size:13px;">${it.score}</td>
-                <td><button style="border:none;background:transparent;color:#666;cursor:pointer" onclick="pushedOldSet.delete('${it.s}'); potOld=potOld.filter(x=>x.s!=='${it.s}'); potNew=potNew.filter(x=>x.s!=='${it.s}');">✕</button></td>
+                <td><button style="border:none;background:transparent;color:#666;cursor:pointer" onclick="pushedSet.delete('${it.s}'); potOld=potOld.filter(x=>x.s!=='${it.s}'); potNew=potNew.filter(x=>x.s!=='${it.s}');">✕</button></td>
             </tr>`);
         });
     }
