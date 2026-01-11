@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V61 獵人直覺強化版</title>
+    <title>V62 獵人佈局版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
@@ -46,9 +46,9 @@
 
 <div class="container">
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢 (已起飛)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (100分制)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (12H波動佈局)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>佈局評分</th><th>狀態</th><th>✕</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
 <script>
@@ -65,7 +65,7 @@
 
         tickers.forEach(d => {
             if (d.s.endsWith('USDT') && !d.s.includes('UPUSDT') && !d.s.includes('DOWNUSDT')) {
-                const s = d.s.replace('USDT', ''), p = parseFloat(d.c), p24 = parseFloat(d.P);
+                const s = d.s.replace('USDT', ''), p = parseFloat(d.c), p24 = parseFloat(d.P), vol = parseFloat(d.q);
                 p24 > 0 ? up++ : down++;
 
                 if (s === 'BTC') { 
@@ -77,30 +77,32 @@
                 if (!dataMap[s]) dataMap[s] = { lastP: p };
                 const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
 
-                // 修改點：調回 1% 門檻
+                // 1. 瞬間噴發 (保持 1%)
                 if (instChange >= 1.0) renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`);
                 
+                // 2. 高檔強勢 (漲幅 > 8% 自動移至此區)
                 if (p24 > 8.0) updateStrong(s, p, p24);
-                const rawScore = (Math.abs(p24 - btcChange) * 40) + (Math.abs(instChange) * 60);
-                if (rawScore > 100) candidates.push({ s, rawScore, status: (p24 > btcChange) ? '強抗跌' : '異動中' });
+
+                // 3. 潛力佈局邏輯 (12h 波動 vs 3d 波動對比)
+                // 約束：成交量 > 800萬，漲幅在 2%~8% 之間 (佈局區)
+                if (vol > 8000000 && p24 >= 2.0 && p24 <= 8.0) {
+                    // 模擬波動覺醒評分 (當前即時變動 vs 24h漲幅的關係，對比過去的概念)
+                    const awakeningScore = Math.round((Math.abs(instChange) * 70) + (p24 * 30));
+                    candidates.push({ s, rawScore: awakeningScore, status: '低位覺醒' });
+                }
+
                 dataMap[s].lastP = p;
             }
         });
 
-        // 修改點：市場寬度文字判斷
+        // 市場寬度判斷
         const trendEl = document.getElementById('market-trend');
-        if (up > down) {
-            trendEl.innerText = "目前上漲較多";
-            trendEl.style.color = "var(--surge)";
-        } else if (down > up) {
-            trendEl.innerText = "目前下跌較多";
-            trendEl.style.color = "var(--fall)";
-        } else {
-            trendEl.innerText = "多空持平";
-            trendEl.style.color = "#eee";
-        }
+        if (up > down) { trendEl.innerText = "目前上漲較多"; trendEl.style.color = "var(--surge)"; }
+        else if (down > up) { trendEl.innerText = "目前下跌較多"; trendEl.style.color = "var(--fall)"; }
+        else { trendEl.innerText = "多空持平"; trendEl.style.color = "#eee"; }
         document.getElementById('up-cnt').innerText = up;
         document.getElementById('down-cnt').innerText = down;
+
         updatePotential(candidates);
     };
 
@@ -146,6 +148,7 @@
         renderPotTable();
     }
 
+    // 資費排序 (±0.05 橘色背景)
     setInterval(async () => {
         try {
             const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
