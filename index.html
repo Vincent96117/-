@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V57 獵人穩定版</title>
+    <title>V55 獵人穩定版 (V52引擎還原)</title>
     <style>
         :root { --bg: #000; --card: #0d1117; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 5px; margin: 0; font-size: 12px; }
@@ -11,25 +11,26 @@
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 6px 15px; border-bottom: 1px solid var(--border); }
         .btc-eth-status { display: flex; gap: 15px; font-weight: bold; font-size: 13px; }
         .market-breadth { border-left: 1px solid #444; padding-left: 15px; margin-left: 15px; }
-        .refresh-btn { background: #1f6feb; color: white; border: none; padding: 3px 10px; cursor: pointer; border-radius: 3px; font-size: 11px; }
+        .refresh-btn { background: #1f6feb; color: white; border: none; padding: 3px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; }
 
         /* 消息看板 */
         .news-banner { background: #161b22; padding: 6px 15px; border: 1px solid #30363d; border-radius: 4px; margin: 5px; font-size: 11px; display: flex; gap: 20px; }
         .news-item b { color: var(--alert); }
 
-        /* 四欄佈局 */
-        .container { display: grid; grid-template-columns: 1fr 1fr 1.2fr 1.5fr; gap: 5px; height: 85vh; padding: 5px; }
+        /* 四欄佈局 (刪除麻花) */
+        .container { display: grid; grid-template-columns: 1fr 1fr 1fr 1.5fr; gap: 5px; height: 85vh; padding: 5px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
         h2 { font-size: 0.85rem; padding: 10px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); }
         .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; }
         td, th { padding: 8px 4px; border-bottom: 1px solid #21262d; text-align: center; }
         
-        .btn-del { background: #333; color: #888; border: none; padding: 2px 6px; cursor: pointer; border-radius: 2px; }
-        .funding-alert { background: #a6611a !important; color: white !important; font-weight: bold; }
-        .pass { color: var(--surge); font-weight: bold; }
+        /* 刪除鈕與跳色 */
+        .btn-del { background: #333; color: #888; border: none; padding: 2px 8px; cursor: pointer; border-radius: 2px; font-size: 14px; }
+        .btn-del:hover { background: var(--fall); color: white; }
+        .funding-alert { background: #a6611a !important; color: white !important; font-weight: bold; padding: 2px 4px; border-radius: 2px; }
         .missing { color: #ff7b72; font-weight: bold; }
-        .all-pass { color: #ff6600; font-weight: bold; border: 1px solid #ff6600; padding: 1px 3px; border-radius: 2px; }
+        .all-pass { color: #ff6600; font-weight: bold; border: 1px solid #ff6600; padding: 1px 3px; }
     </style>
 </head>
 <body>
@@ -46,7 +47,7 @@
 </div>
 
 <div class="news-banner">
-    <div class="news-item"><b>📢 重要消息:</b></div>
+    <div class="news-item"><b>📢 本週重要消息:</b></div>
     <div class="news-item">us CPI 數據: 01/13 21:30</div>
     <div class="news-item">初請失業金: 01/15 21:30</div>
     <div class="news-item">密大消費者信心: 01/16 23:00</div>
@@ -54,20 +55,18 @@
 
 <div class="container">
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發(>=1.5%)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>幅度%</th><th>操作</th></tr></thead><tbody id="surge-list"></tbody></table></div></div>
-    
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>24h%</th><th>操作</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
-    
-    <div class="card"><h2 style="color:var(--fall)">⚠️ 資費異常 (誇張前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>操作</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (精選 10 檔)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>滿足</th><th>缺失</th><th>布林</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:var(--fall)">⚠️ 資費異常 (±0.05)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>操作</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (精選 10 檔)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>滿足</th><th>缺失</th><th>操作</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
 </div>
 
 <script>
     let dataMap = {};
     let btcChange = 0;
-    let potentialLocked = false; // 是否鎖定潛力幣名單
-    const potentialLimit = 10;   // 只選 10 檔
+    let potLocked = false;
+    const potMax = 10;
 
+    // 全市場監控核心
     const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
 
     ws.onmessage = (e) => {
@@ -85,23 +84,21 @@
             if (s === 'BTC') { btcChange = p24; document.getElementById('btc-live').innerText = `BTC: ${p24}%`; }
             if (s === 'ETH') document.getElementById('eth-live').innerText = `ETH: ${p24}%`;
 
-            if (!dataMap[s]) dataMap[s] = { lastP: p, bw: 0.02, prevBw: 0.018 };
+            if (!dataMap[s]) dataMap[s] = { lastP: p, bw: 0.02, prevBw: 0.015 };
 
             // 1. 瞬間噴發
             const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
             if (instChange >= 1.5) {
-                renderRow('surge-list', `<td>${s}</td><td class="pass">+${instChange.toFixed(2)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>`);
+                addToList('surge-list', `<td>${s}</td><td class="pass">+${instChange.toFixed(2)}%</td>`);
             }
 
             // 2. 高檔強勢
-            if (p24 > 7.5 && !document.getElementById(`strong-${s}`)) {
-                renderRow('strong-list', `<td>${s}</td><td>${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>`, `strong-${s}`);
+            if (p24 > 8.0 && !document.getElementById(`strong-${s}`)) {
+                addToList('strong-list', `<td>${s}</td><td>${p24}%</td>`, `strong-${s}`);
             }
 
-            // 4. 潛力幣邏輯 (名單滿 10 個後就鎖定不跳)
-            if (!potentialLocked) {
-                updatePotential(s, p, p24, dataMap[s]);
-            }
+            // 4. 潛力幣邏輯 (鎖定 10 檔，含刪除鈕)
+            if (!potLocked) checkPot(s, p, p24, dataMap[s]);
 
             dataMap[s].lastP = p;
         });
@@ -110,30 +107,32 @@
         document.getElementById('down-cnt').innerText = down;
     };
 
-    // 資費真實掃描
+    // 真實資費掃描 (±0.05 跳色 + 刪除鈕)
     setInterval(async () => {
         try {
             const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
             const funds = await res.json();
-            const topFunds = funds
+            const filtered = funds
                 .map(f => ({ s: f.symbol.replace('USDT', ''), r: parseFloat(f.lastFundingRate) * 100 }))
                 .filter(f => Math.abs(f.r) >= 0.05)
                 .sort((a, b) => Math.abs(b.r) - Math.abs(a.r))
                 .slice(0, 5);
 
             const list = document.getElementById('fund-list');
-            list.innerHTML = ''; 
-            topFunds.forEach(f => {
-                const html = `<tr><td>${f.s}</td><td class="funding-alert">${f.r.toFixed(4)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
-                list.insertAdjacentHTML('beforeend', html);
+            filtered.forEach(f => {
+                const rid = `fund-${f.s}`;
+                if (!document.getElementById(rid)) {
+                    const row = `<tr id="${rid}"><td>${f.s}</td><td class="funding-alert">${f.r.toFixed(4)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+                    list.insertAdjacentHTML('afterbegin', row);
+                }
             });
         } catch (e) {}
-    }, 8000);
+    }, 10000);
 
-    function updatePotential(s, p, p24, cache) {
+    function checkPot(s, p, p24, cache) {
         const conds = [
-            { lab: '趨勢', pass: p24 > 3.5 },      // 門檻拉高，更精選
-            { lab: '強度', pass: (p24 - btcChange) > 4.0 }, 
+            { lab: '趨勢', pass: p24 > 3.0 },
+            { lab: '強度', pass: (p24 - btcChange) > 2.5 }, // 修下強度門檻，讓你更早看到
             { lab: '布林', pass: cache.bw > cache.prevBw }
         ];
         const passed = conds.filter(c => c.pass);
@@ -141,24 +140,22 @@
 
         if (passed.length >= 2) {
             const list = document.getElementById('potential-list');
-            if (list.children.length >= potentialLimit) {
-                potentialLocked = true; // 滿 10 檔，鎖定名單
-                return;
-            }
+            if (list.children.length >= potMax) { potLocked = true; return; }
 
-            const rowId = `pot-${s}`;
+            const rid = `pot-${s}`;
             const missLab = missing ? `<span class="missing">缺:${missing.lab}</span>` : `<span class="all-pass">ALL</span>`;
-            const html = `<td>${s}</td><td>${passed.length}/3</td><td>${missLab}</td><td>${cache.bw < 0.02 ? '壓縮' : '開口'}</td>`;
-            let row = document.getElementById(rowId);
-            if (row) row.innerHTML = html;
-            else list.insertAdjacentHTML('beforeend', `<tr id="${rowId}">${html}</tr>`);
+            const html = `<td>${s}</td><td>${passed.length}/3</td><td>${missLab}</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>`;
+            if (document.getElementById(rid)) document.getElementById(rid).innerHTML = html;
+            else list.insertAdjacentHTML('beforeend', `<tr id="${rid}">${html}</tr>`);
         }
     }
 
-    function renderRow(id, html, rid = '') {
+    function addToList(id, html, rid = '') {
         const b = document.getElementById(id);
-        b.insertAdjacentHTML('afterbegin', `<tr ${rid ? `id="${rid}"` : ''}>${html}</tr>`);
-        if (b.children.length > 25) b.lastElementChild.remove();
+        if (rid && document.getElementById(rid)) return;
+        const row = `<tr ${rid ? `id="${rid}"` : ''}>${html}<td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+        b.insertAdjacentHTML('afterbegin', row);
+        if (b.children.length > 20) b.lastElementChild.remove();
     }
 </script>
 </body>
