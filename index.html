@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>V72 獵人終極版 (籌碼集中度)</title>
+    <title>V73 獵人工具版 (手動體檢功能)</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 2px; margin: 0; font-size: 11px; overflow: hidden; width: 100vw; }
@@ -11,7 +11,7 @@
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 4px 10px; border-bottom: 1px solid var(--border); height: 32px; }
         .btc-eth-status { display: flex; gap: 12px; font-weight: bold; font-size: 12px; }
         .refresh-btn { background: #1f6feb; color: white; border: none; padding: 2px 10px; cursor: pointer; border-radius: 3px; }
-        .container { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr 1.6fr; gap: 4px; height: calc(100vh - 85px); padding: 4px; box-sizing: border-box; }
+        .container { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr 1.6fr; gap: 4px; height: calc(100vh - 125px); padding: 4px; box-sizing: border-box; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; min-width: 0; }
         h2 { font-size: 0.8rem; padding: 8px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); }
         .scroll { flex: 1; overflow-y: auto; }
@@ -22,6 +22,12 @@
         .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
         @keyframes blink-red { 0% { background: transparent; } 50% { background: #f8514955; } 100% { background: transparent; } }
         .pot-alert { animation: blink-red 0.5s infinite; border: 1px solid var(--fall) !important; }
+        
+        /* 底部體檢工具樣式 */
+        .check-tool { background: #161b22; border: 1px solid #444; margin: 4px; padding: 8px; border-radius: 4px; display: flex; align-items: center; gap: 15px; }
+        .check-input { background: #000; border: 1px solid #58a6ff; color: #fff; padding: 4px 8px; border-radius: 3px; width: 100px; text-transform: uppercase; }
+        .check-btn { background: #238636; color: white; border: none; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; }
+        #check-result { font-size: 12px; font-weight: bold; color: #58a6ff; }
     </style>
 </head>
 <body>
@@ -50,7 +56,14 @@
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發 (>=1%)</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>✕</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--fall)">⚠️ 資費 (前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>✕</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
-    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (籌碼集中度版)</h2><div class="scroll"><table><thead><th style="width:38%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></thead><tbody id="potential-list"></tbody></table></div></div>
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (寧缺勿濫版)</h2><div class="scroll"><table><thead><th style="width:38%">幣種(資費)</th><th>評分</th><th>狀態</th><th>✕</th></thead><tbody id="potential-list"></tbody></table></div></div>
+</div>
+
+<div class="check-tool">
+    <b>🔍 幣種體檢工具：</b>
+    <input type="text" id="manual-symbol" class="check-input" placeholder="例如: SOL" onkeydown="if(event.key==='Enter') runCheck()">
+    <button class="check-btn" onclick="runCheck()">開始評分</button>
+    <div id="check-result">請輸入幣種代碼並點擊開始...</div>
 </div>
 
 <script>
@@ -58,6 +71,7 @@
     let btcChange = 0;
     let fundingMap = {};
     let lockedPotList = [];
+    let fullMarketData = []; // 用於體檢工具查詢
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function playBeep(times) {
@@ -98,6 +112,7 @@
     const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
     ws.onmessage = (e) => {
         const tickers = JSON.parse(e.data);
+        fullMarketData = tickers; // 備份資料供體檢工具使用
         let up = 0, down = 0, candidates = [];
         tickers.forEach(d => {
             if (d.s.endsWith('USDT') && !d.s.includes('UPUSDT') && !d.s.includes('DOWNUSDT')) {
@@ -113,22 +128,10 @@
                 if (instChange >= 1.0) { renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`); playBeep(1); }
                 if (p24 > 8.0) updateStrong(s, p, p24);
 
-                // V72 核心邏輯：漲幅 1-5%, 震幅 <= 6.5%, 量底 800萬
+                // 潛力邏輯保持 V72
                 if (vol > 8000000 && p24 >= 1.0 && p24 <= 5.0 && range <= 6.5) {
-                    const leadDiff = p24 - btcChange;
-                    const rsScore = leadDiff > 0 ? Math.min(40, leadDiff * 15) : 0; // RS佔40
-                    const squeezeScore = Math.max(0, (6.5 - range) * 3); // 擠壓佔20
-                    
-                    // V72 籌碼對比邏輯 (佔40): 成交量密度 + 量價背離加成
-                    let chipScore = Math.min(40, (vol / 12000000) * 15);
-                    if (vol > 20000000 && range < 4.0) chipScore += 10; // 量大且窄幅 = 強力吸籌
-
-                    const finalScore = Math.round(rsScore + squeezeScore + chipScore);
-                    candidates.push({ 
-                        s, 
-                        rawScore: Math.min(100, finalScore), 
-                        status: range < 3.5 ? '籌碼高度集中' : (leadDiff > 1.5 ? '放量領先' : '底部蓄勢') 
-                    });
+                    const finalScore = calculateScore(p24, vol, range);
+                    candidates.push({ s, rawScore: finalScore, status: range < 3.5 ? '籌碼高度集中' : ( (p24 - btcChange) > 1.5 ? '放量領先' : '底部蓄勢') });
                 }
                 dataMap[s].lastP = p;
             }
@@ -140,13 +143,35 @@
         updatePotential(candidates);
     };
 
+    function calculateScore(p24, vol, range) {
+        const leadDiff = p24 - btcChange;
+        const rsScore = leadDiff > 0 ? Math.min(40, leadDiff * 15) : 0;
+        const squeezeScore = Math.max(0, (6.5 - range) * 3);
+        let chipScore = Math.min(40, (vol / 12000000) * 15);
+        if (vol > 20000000 && range < 4.0) chipScore += 10;
+        return Math.min(100, Math.round(rsScore + squeezeScore + chipScore));
+    }
+
+    function runCheck() {
+        const sym = document.getElementById('manual-symbol').value.toUpperCase().trim();
+        const target = fullMarketData.find(d => d.s === sym + 'USDT');
+        const resDiv = document.getElementById('check-result');
+        if (!target) { resDiv.innerHTML = "❌ 找不到該幣種，請確認輸入正確 (例如: SOL)"; return; }
+        
+        const p24 = parseFloat(target.P), vol = parseFloat(target.q), range = ((parseFloat(target.h)-parseFloat(target.l))/parseFloat(target.l))*100;
+        const score = calculateScore(p24, vol, range);
+        const fr = fundingMap[sym] || 0;
+        
+        resDiv.innerHTML = `💎 ${sym} 體檢報告：<span style="color:#ff6600">評分 ${score}</span> | 24h漲幅: ${p24}% | 震幅: ${range.toFixed(2)}% | 資費: ${fr.toFixed(4)}% | ${score > 75 ? '🔥 建議關注佈局' : '💡 目前動能普通'}`;
+    }
+
+    // ... 其餘更新與渲染函數保持原樣 ...
     function updateStrong(s, p, p24) {
         const list = document.getElementById('strong-list');
         let row = document.getElementById(`strong-${s}`);
         if (!row) { list.insertAdjacentHTML('beforeend', `<tr id="strong-${s}"><td>${s}</td><td>${p}</td><td style="color:var(--surge)">${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`); } 
         else { row.cells[1].innerText = p; row.cells[2].innerText = `${p24}%`; }
     }
-
     function updatePotential(candidates) {
         if (lockedPotList.length >= 10) { refreshScores(); return; }
         candidates.sort((a, b) => b.rawScore - a.rawScore);
@@ -154,33 +179,28 @@
             if (lockedPotList.length < 10 && !lockedPotList.find(i => i.s === c.s)) { lockedPotList.push(c); renderPotTable(); }
         });
     }
-
     function renderPotTable() {
         const list = document.getElementById('potential-list');
         list.innerHTML = '';
         lockedPotList.forEach(item => {
             const fRate = fundingMap[item.s] || 0;
             const fClass = Math.abs(fRate) >= 0.05 ? 'funding-high' : '';
-            const alertClass = item.rawScore >= 80 ? 'pot-alert' : '';
             if (item.rawScore >= 80) playBeep(2);
-            list.insertAdjacentHTML('beforeend', `<tr id="pot-${item.s}" class="${alertClass}"><td>${item.s} <span class="funding-tag ${fClass}">${fRate.toFixed(3)}%</span></td><td style="color:${item.rawScore>=95?'#ff4444':'var(--alert)'};font-weight:bold">${item.rawScore}</td><td>${item.status}</td><td><button class="btn-del" onclick="removePot('${item.s}')">✕</button></td></tr>`);
+            list.insertAdjacentHTML('beforeend', `<tr id="pot-${item.s}" class="${item.rawScore >= 80 ? 'pot-alert' : ''}"><td>${item.s} <span class="funding-tag ${fClass}">${fRate.toFixed(3)}%</span></td><td style="color:${item.rawScore>=95?'#ff4444':'var(--alert)'};font-weight:bold">${item.rawScore}</td><td>${item.status}</td><td><button class="btn-del" onclick="removePot('${item.s}')">✕</button></td></tr>`);
         });
     }
-
     function refreshScores() {
         lockedPotList.forEach(item => {
             const row = document.getElementById(`pot-${item.s}`);
             if (row) {
                 const fRate = fundingMap[item.s] || 0;
-                const fClass = Math.abs(fRate) >= 0.05 ? 'funding-high' : '';
                 const fTag = row.cells[0].querySelector('.funding-tag');
-                if(fTag) { fTag.className = `funding-tag ${fClass}`; fTag.innerText = `${fRate.toFixed(3)}%`; }
+                if(fTag) { fTag.className = `funding-tag ${Math.abs(fRate)>=0.05?'funding-high':''}`; fTag.innerText = `${fRate.toFixed(3)}%`; }
                 row.cells[1].innerText = item.rawScore;
                 if (item.rawScore >= 80) row.classList.add('pot-alert'); else row.classList.remove('pot-alert');
             }
         });
     }
-
     function removePot(s) { lockedPotList = lockedPotList.filter(i => i.s !== s); renderPotTable(); }
     function renderRow(id, html) {
         const b = document.getElementById(id);
