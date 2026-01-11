@@ -7,7 +7,148 @@
         :root { --bg: #000; --card: #0d1117; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 5px; margin: 0; font-size: 12px; }
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 6px 15px; border-bottom: 1px solid var(--border); }
+        .btc-eth-status { display: flex; gap: 15px; font-weight: bold; font-size: 13px; }<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>V57.1 獵人精準排序版</title>
+    <style>
+        :root { --bg: #000; --card: #0d1117; --border: #30363d; --text: #c9d1d9; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 5px; margin: 0; font-size: 12px; }
+        .header-main { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 6px 15px; border-bottom: 1px solid var(--border); }
         .btc-eth-status { display: flex; gap: 15px; font-weight: bold; font-size: 13px; }
+        .refresh-btn { background: #1f6feb; color: white; border: none; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; }
+        .container { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr 1.5fr; gap: 5px; height: 85vh; padding: 5px; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
+        h2 { font-size: 0.85rem; padding: 10px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); }
+        .scroll { flex: 1; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        td, th { padding: 8px 4px; border-bottom: 1px solid #21262d; text-align: center; }
+        .btn-del { background: #333; color: #888; border: none; padding: 2px 8px; cursor: pointer; border-radius: 2px; font-size: 14px; }
+        .funding-alert { background: #a6611a !important; color: white !important; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="header-main">
+    <div style="display:flex; align-items:center;">
+        <div class="btc-eth-status">
+            <span id="btc-live" style="color:#f2a900">BTC: -- (--)</span>
+            <span id="eth-live" style="color:#627eea">ETH: -- (--)</span>
+        </div>
+        <div class="market-breadth" style="margin-left:20px; border-left: 1px solid #444; padding-left: 15px;">
+            市場寬度 | 上漲: <span id="up-cnt" style="color:var(--surge)">--</span> | 下跌: <span id="down-cnt" style="color:var(--fall)">--</span>
+        </div>
+    </div>
+    <button class="refresh-btn" onclick="location.reload()">🔄 刷新重連</button>
+</div>
+
+<div class="container">
+    <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
+    
+    <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>現價</th><th>24h%</th><th>操作</th></tr></thead><tbody id="strong-list"></tbody></table></div></div>
+    
+    <div class="card"><h2 style="color:var(--fall)">⚠️ 資費異常 (誇張前 5)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>資費</th><th>操作</th></tr></thead><tbody id="fund-list"></tbody></table></div></div>
+    
+    <div class="card"><h2 style="color:#bc8cff">💎 潛力監控 (評分鎖定)</h2><div class="scroll"><table><thead><tr><th>幣種</th><th>評分</th><th>狀態</th><th>操作</th></tr></thead><tbody id="potential-list"></tbody></table></div></div>
+</div>
+
+<script>
+    let dataMap = {};
+    let btcChange = 0;
+    let lockedPotList = [];
+
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
+
+    ws.onmessage = (e) => {
+        const tickers = JSON.parse(e.data);
+        let up = 0, down = 0;
+        let candidates = [];
+
+        tickers.forEach(d => {
+            if (!d.s.endsWith('USDT')) return;
+            const s = d.s.replace('USDT', ''), p = parseFloat(d.c), p24 = parseFloat(d.P);
+            p24 > 0 ? up++ : down++;
+
+            if (s === 'BTC') { 
+                btcChange = p24; 
+                document.getElementById('btc-live').innerText = `BTC: ${p} (${p24}%)`; 
+            }
+            if (s === 'ETH') document.getElementById('eth-live').innerText = `ETH: ${p} (${p24}%)`;
+
+            if (!dataMap[s]) dataMap[s] = { lastP: p };
+            const instChange = ((p - dataMap[s].lastP) / dataMap[s].lastP) * 100;
+
+            if (instChange >= 1.5) renderRow('surge-list', `<td>${s}</td><td style="color:var(--surge)">+${instChange.toFixed(2)}%</td>`);
+            if (p24 > 8.0) updateStrong(s, p, p24);
+
+            const score = Math.round((Math.abs(p24 - btcChange) * 40) + (Math.abs(instChange) * 60));
+            if (score > 100) candidates.push({ s, score, status: (p24 > btcChange) ? '強抗跌' : '異動中' });
+
+            dataMap[s].lastP = p;
+        });
+
+        document.getElementById('up-cnt').innerText = up;
+        document.getElementById('down-cnt').innerText = down;
+        updatePotential(candidates);
+    };
+
+    function updateStrong(s, p, p24) {
+        const list = document.getElementById('strong-list');
+        let row = document.getElementById(`strong-${s}`);
+        if (!row) {
+            list.insertAdjacentHTML('beforeend', `<tr id="strong-${s}"><td>${s}</td><td>${p}</td><td style="color:var(--surge)">${p24}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
+        } else {
+            row.cells[1].innerText = p; row.cells[2].innerText = `${p24}%`;
+        }
+    }
+
+    function updatePotential(candidates) {
+        if (lockedPotList.length >= 10) return; 
+        candidates.sort((a, b) => b.score - a.score);
+        candidates.forEach(c => {
+            if (lockedPotList.length < 10 && !lockedPotList.find(i => i.s === c.s)) {
+                lockedPotList.push(c);
+                const list = document.getElementById('potential-list');
+                list.insertAdjacentHTML('beforeend', `<tr id="pot-${c.s}"><td>${c.s}</td><td style="color:var(--alert);font-weight:bold">${c.score}</td><td>${c.status}</td><td><button class="btn-del" onclick="removePot('${c.s}')">✕</button></td></tr>`);
+            }
+        });
+    }
+
+    function removePot(s) {
+        document.getElementById(`pot-${s}`).remove();
+        lockedPotList = lockedPotList.filter(i => i.s !== s);
+    }
+
+    // 資費精準排序：取絕對值最大前 5 名
+    setInterval(async () => {
+        try {
+            const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
+            const funds = await res.json();
+            const list = document.getElementById('fund-list');
+            
+            // 排序邏輯：絕對值由大到小
+            const sortedFunds = funds
+                .map(f => ({ s: f.symbol.replace('USDT', ''), r: parseFloat(f.lastFundingRate) * 100 }))
+                .filter(f => Math.abs(f.r) >= 0.05)
+                .sort((a, b) => Math.abs(b.r) - Math.abs(a.r))
+                .slice(0, 5);
+
+            list.innerHTML = ''; // 每次刷新只留前五名
+            sortedFunds.forEach(f => {
+                list.insertAdjacentHTML('beforeend', `<tr id="fund-${f.s}"><td>${f.s}</td><td class="funding-alert">${f.r.toFixed(4)}%</td><td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
+            });
+        } catch (e) {}
+    }, 5000);
+
+    function renderRow(id, html) {
+        const b = document.getElementById(id);
+        b.insertAdjacentHTML('afterbegin', `<tr>${html}<td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
+        if (b.children.length > 20) b.lastElementChild.remove();
+    }
+</script>
+</body>
+</html>
         .market-breadth { border-left: 1px solid #444; padding-left: 15px; margin-left: 15px; }
         .refresh-btn { background: #1f6feb; color: white; border: none; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; }
         .news-banner { background: #161b22; padding: 6px 15px; border: 1px solid #30363d; border-radius: 4px; margin: 5px; font-size: 11px; display: flex; gap: 20px; }
@@ -141,3 +282,4 @@
 </script>
 </body>
 </html>
+
