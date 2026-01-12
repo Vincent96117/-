@@ -2,32 +2,33 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V130 終極穩定版</title>
+    <title>HUNTER PRO | V131 定格穩定版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; --double: #f2a900; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
         .header-main { display: flex; align-items: center; justify-content: space-between; background: #161b22; padding: 2px 12px; height: 35px; border-bottom: 1px solid var(--border); }
         .container { display: grid; grid-template-columns: 0.8fr 0.8fr 1.3fr 1.3fr; gap: 4px; flex: 1; padding: 4px; box-sizing: border-box; overflow: hidden; }
         .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
-        h2 { font-size: 0.8rem; padding: 5px; margin: 0; background: #161b22; border-bottom: 1px solid var(--border); text-align: center; }
+        .card-header { display: flex; justify-content: center; align-items: center; background: #161b22; border-bottom: 1px solid var(--border); position: relative; }
+        h2 { font-size: 0.8rem; padding: 5px; margin: 0; text-align: center; }
+        .btn-mini { position: absolute; right: 5px; font-size: 10px; padding: 2px 5px; cursor: pointer; background: #333; color: #fff; border: 1px solid #444; border-radius: 3px; }
         .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         td { padding: 8px 4px; border-bottom: 1px solid #21262d; text-align: center; vertical-align: middle; }
-        /* 核心變色邏輯 */
+        /* 視覺校準：大面積變色 */
         .win-row { background-color: #064e3b !important; color: #fff !important; } 
         .loss-row { background-color: #7f1d1d !important; color: #fff !important; }
         .funding-high { background-color: #a6611a !important; color: white !important; font-weight: bold; }
         .up { color: var(--surge); font-weight: bold; } .down { color: var(--fall); font-weight: bold; }
         .snap-score { color: var(--alert); font-weight: bold; margin-right: 4px; }
-        .status-tag { font-size: 9px; color: #aaa; display: block; }
     </style>
 </head>
 <body>
 
 <div class="header-main">
     <div><span style="color:#f2a900">BTC: <span id="btc-live">--</span></span></div>
-    <div style="color:var(--strong); font-weight:bold;">V130 | 🎯 核心/定格/資費全修正版</div>
-    <button onclick="location.reload();">🔄 重新整理</button>
+    <div style="color:var(--double); font-weight:bold;">V131 | 🎯 08:00 定格 (對標前一小時收盤)</div>
+    <button onclick="location.reload();">🔄 全域刷新</button>
 </div>
 
 <div class="container">
@@ -36,7 +37,10 @@
     <div class="card">
         <h2 style="color:var(--fall)">⚠️ 資金費率 (±0.05)</h2>
         <div style="height: 38%; border-bottom: 2px solid #333;" class="scroll"><table><tbody id="fund-list"></tbody></table></div>
-        <h2 style="color:var(--double)">⏱️ 08:00 定格對標</h2>
+        <div class="card-header">
+            <h2 style="color:var(--double)">⏱️ 08:00 定格對標</h2>
+            <button class="btn-mini" onclick="load0800()">🔄 刷新</button>
+        </div>
         <div class="scroll"><table><tbody id="snap-list"></tbody></table></div>
     </div>
     <div class="card">
@@ -57,77 +61,61 @@
             const tickers = JSON.parse(e.data);
             tickers.forEach(d => {
                 if(!d.s.endsWith('USDT')) return;
-                const s = d.s.replace('USDT',''), p = parseFloat(d.c), p24 = parseFloat(d.P), vol = parseFloat(d.q), h = parseFloat(d.h), l = parseFloat(d.l), range = ((h-l)/l)*100;
-                
+                const s = d.s.replace('USDT',''), p = parseFloat(d.c), p24 = parseFloat(d.P), vol = parseFloat(d.q), range = ((parseFloat(d.h)-parseFloat(d.l))/parseFloat(d.l))*100;
                 if(s==='BTC') { btcChange=p24; document.getElementById('btc-live').innerText=`${p} (${p24}%)`; }
-                
-                let oldP = dataMap[s] ? dataMap[s].lp : p;
                 if(!dataMap[s]) {
                     dataMap[s] = { lp: p, avg4hVol: 5000000 };
                     fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${d.s}&interval=4h&limit=18`).then(r=>r.json()).then(k=>{
                         let t=0; k.forEach(x=>t+=parseFloat(x[7])); dataMap[s].avg4hVol=t/k.length;
                     }).catch(()=>{});
                 }
-                dataMap[s].lp = p; 
-
-                // 右側監控邏輯
+                const oldP = dataMap[s].lp; dataMap[s].lp = p; 
                 const rsS = (p24 - btcChange) > 0 ? Math.min(45, (p24 - btcChange) * 11) : 0;
                 const sqS = Math.max(0, Math.min(30, (6.5 - range) * 4.6));
                 const volRatio = (vol / 6) / (dataMap[s].avg4hVol || 5000000);
                 const coreScore = (vol > 8000000) ? Math.min(100, Math.round(rsS + sqS + Math.min(25, (vol/10000000)*5) + 5)) : 0;
                 const trendScore = Math.min(100, Math.round(rsS + sqS + Math.min(25, volRatio * 10)));
-                
-                if(p24 > 8.0) {
-                    const sl = document.getElementById('strong-list');
-                    let er = [...sl.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
-                    if (!er) sl.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td class="up">${p24}%</td></tr>`);
-                    else er.cells[1].innerText = `${p24}%`;
-                }
-                if(coreScore >= 20) updateList(potOld, {s, score:coreScore, desc:`縮${range.toFixed(1)}% | ${volRatio.toFixed(1)}x`}, 'table-old');
-                if(trendScore >= 20) updateList(potNew, {s, score:trendScore, desc:`放量${volRatio.toFixed(1)}x`}, 'table-new');
-
-                const inst = ((p - oldP)/oldP)*100;
-                if(inst>=1.2) {
-                    const b = document.getElementById('surge-list');
-                    b.insertAdjacentHTML('afterbegin', `<tr><td>${s}</td><td class="up">+${inst.toFixed(2)}%</td></tr>`);
-                    if(b.children.length>12) b.lastElementChild.remove();
-                }
+                if(coreScore >= 20) updateList(potOld, {s, score:coreScore, desc:`縮${range.toFixed(1)}%`}, 'table-old');
+                if(trendScore >= 20) updateList(potNew, {s, score:trendScore, desc:`量能${volRatio.toFixed(1)}x`}, 'table-new');
             });
-            renderSnapshot(); // 強制實時更新左側定格表
         };
     }
 
     async function load0800() {
+        document.getElementById('snap-list').innerHTML = '<tr><td>載入中...</td></tr>';
+        lockedSnapshot = [];
         try {
             const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr`);
             const data = await res.json();
             const top = data.filter(d => d.symbol.endsWith('USDT')).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 60);
             for(let d of top) {
                 const s = d.symbol.replace('USDT','');
-                const k = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${d.symbol}&interval=1d&limit=1`).then(r=>r.json());
-                if(k.length) {
-                    const open = parseFloat(k[0][1]);
+                // 同時抓取 1天K線(08:00開盤) 與 1小時K線(最近收盤)
+                const [k1d, k1h] = await Promise.all([
+                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${d.symbol}&interval=1d&limit=1`).then(r=>r.json()),
+                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${d.symbol}&interval=1h&limit=1`).then(r=>r.json())
+                ]);
+                if(k1d.length && k1h.length) {
+                    const open = parseFloat(k1d[0][1]);
+                    const lastHourClose = parseFloat(k1h[0][4]); // 前一小時收盤價
                     const score = Math.min(100, Math.round((parseFloat(d.priceChangePercent) * 10) + 30));
-                    if(score >= 40) {
-                        lockedSnapshot.push({ s, open, score });
-                        renderSnapshot();
-                    }
+                    if(score >= 40) lockedSnapshot.push({ s, open, lastHourClose, score });
                 }
             }
-        } catch(e){}
+            renderSnapshot();
+        } catch(e){ console.error(e); }
     }
 
     function renderSnapshot() {
         const dom = document.getElementById('snap-list');
         dom.innerHTML = '';
         lockedSnapshot.sort((a,b)=>b.score-a.score).forEach(it => {
-            const cur = dataMap[it.s] ? dataMap[it.s].lp : it.open;
-            const diff = ((cur - it.open) / it.open * 100).toFixed(2);
+            const diff = ((it.lastHourClose - it.open) / it.open * 100).toFixed(2);
             let rowClass = (parseFloat(diff) >= 10) ? 'win-row' : (parseFloat(diff) <= -10 ? 'loss-row' : '');
             dom.insertAdjacentHTML('beforeend', `<tr class="${rowClass}">
                 <td style="width:30%; text-align:left; padding-left:10px;"><span class="snap-score">${it.score}</span>${it.s}</td>
-                <td style="width:40%; color:inherit;">${it.open.toFixed(4)}→${cur.toFixed(4)}</td>
-                <td style="width:30%; font-weight:bold;" class="${parseFloat(diff)>=0?'up':'down'}">${diff}%</td>
+                <td style="width:45%; color:inherit; font-size:10px;">${it.open.toFixed(4)}→${it.lastHourClose.toFixed(4)}</td>
+                <td style="width:25%; font-weight:bold;" class="${parseFloat(diff)>=0?'up':'down'}">${diff}%</td>
             </tr>`);
         });
     }
