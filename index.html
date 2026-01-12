@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V157 雙週期 TP 版</title>
+    <title>HUNTER PRO | V158 邏輯修正版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 12px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
@@ -25,14 +25,14 @@
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 HUNTER PRO 技術雷達 (V157)</span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 HUNTER PRO 技術雷達 (V158)</span>
             <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
         <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動掃描</button>
     </div>
 
     <div class="control-panel">
-        <input type="text" id="search-input" placeholder="搜尋幣種 (如: PEPE, SOL)">
+        <input type="text" id="search-input" placeholder="打幣名(如 SOL, PEPE)">
         <button class="btn" onclick="diagnoseSymbol()">🔍 強力診斷</button>
         <button class="btn" style="background:#555; color:#fff" onclick="clearBlacklist()">重設名單</button>
         <div id="diag-box"></div>
@@ -79,20 +79,15 @@
             if(!tData.symbol) return null;
             
             const now = parseFloat(hK[hK.length-1][4]);
-            const open = parseFloat(hK[hK.length-1][1]);
             const hCloses = hK.map(k=>parseFloat(k[4])), ma7 = getMA(hCloses, 7), ma25 = getMA(hCloses, 25);
             const funding = parseFloat(fRes.lastFundingRate * 100);
 
-            // --- 雙週期 TP 計算 ---
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
-            // 1. 24小時 TP (現)
             const avgR24 = (ranges.slice(-25, -1).reduce((a,b)=>a+b,0) / 24);
             const tpNow = ((avgR24 / now) * 100 * 2.8).toFixed(1);
-            // 2. 5天 TP (5D)
             const avgR5D = (ranges.slice(0, 120).reduce((a,b)=>a+b,0) / 120);
             const tp5D = ((avgR5D / now) * 100 * 2.8).toFixed(1);
 
-            // 分數拆解
             const vRatio = (parseFloat(hK[hK.length-1][2]) - parseFloat(hK[hK.length-1][3])) / avgR24;
             const vScore = Math.min(25, (vRatio / 1.8) * 25); 
             const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
@@ -108,7 +103,7 @@
                 qScore: qScore.toFixed(0), hScore: hScore.toFixed(0), 
                 funding, vRatio, distToH, tpNow, tp5D,
                 change: tData.priceChangePercent, 
-                isBull: (now >= open && ma7 > ma25),
+                isBull: (ma7 > ma25), // 修正：移除收紅限制，僅保留趨勢過濾
                 isFocus: (funding >= -0.05 && funding <= 0.05)
             };
         } catch(e) { return null; }
@@ -118,12 +113,12 @@
         let s = document.getElementById('search-input').value.trim().toUpperCase();
         if(!s) return; if(!s.endsWith('USDT')) s += 'USDT';
         const box = document.getElementById('diag-box');
-        box.style.display = 'block'; box.innerHTML = "⏳ 幣安合約強力搜尋中...";
+        box.style.display = 'block'; box.innerHTML = "⏳ 搜尋中...";
         const d = await getSymbolData(s);
-        if(!d) { box.innerHTML = `<span style="color:#ff4444">❌ 找不到 [${s}]，請確認幣安合約是否有該幣。</span>`; return; }
+        if(!d) { box.innerHTML = `<span style="color:#ff4444">❌ 找不到 [${s}]</span>`; return; }
         box.innerHTML = `
-            <div style="font-weight:bold; color:#f2a900;">📊 ${s} 診斷 | <span class="tp-now">現: ${d.tpNow}%</span> <span class="tp-5d">5D: ${d.tp5D}%</span></div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:12px; margin-top:5px; background: #222; padding: 10px; border-radius: 5px;">
+            <div style="font-weight:bold; color:#f2a900;">📊 ${s} | <span class="tp-now">現: ${d.tpNow}%</span> <span class="tp-5d">5D: ${d.tp5D}%</span></div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:11px; margin-top:5px; background: #222; padding: 10px; border-radius: 5px;">
                 <div>🌪️ 波動：${d.vScore}</div><div>🧶 糾結：${d.tangleScore}</div>
                 <div>📈 量能：${d.qScore}</div><div>🎯 突破：${d.hScore}</div>
             </div>
