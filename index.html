@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V116 終極定格版</title>
+    <title>HUNTER PRO | V117 絕對定格版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; --double: #f2a900; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -23,34 +23,28 @@
         .snap-title { background: #222; font-size: 10px; padding: 2px 5px; color: #aaa; font-weight: bold; }
         .snap-score { color: var(--alert); font-weight: bold; margin-right: 5px; }
         .up { color: var(--surge); font-weight: bold; } .down { color: var(--fall); font-weight: bold; }
-        .win-row { background: #064e3b !important; } 
-        .loss-row { background: #7f1d1d !important; }
+        .win-row { background: #064e3b !important; } .loss-row { background: #7f1d1d !important; }
     </style>
 </head>
 <body>
-
 <div class="top-calendar">
     <div class="cal-header"><span>📅 USD 重要日曆</span><span id="cal-status">OK</span></div>
     <div id="calendar-content" class="cal-scroll"></div>
 </div>
-
 <div class="header-main">
-    <div><span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | <span style="color:#627eea">ETH: <span id="eth-live">--</span></span></div>
-    <div style="color:var(--strong); font-weight:bold;">HUNTER PRO | V116 終極定格全能版</div>
+    <div><span style="color:#f2a900">BTC: <span id="btc-live">--</span></span></div>
+    <div style="color:var(--strong); font-weight:bold;">HUNTER PRO | V117 鎖定版</div>
     <button onclick="localStorage.clear(); location.reload();">🧹 徹底刷清數據</button>
 </div>
-
 <div class="container">
     <div class="card"><h2 style="color:var(--surge)">🚀 瞬間噴發</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
     <div class="card"><h2 style="color:var(--strong)">🔥 高檔強勢</h2><div class="scroll"><table><tbody id="strong-list"></tbody></table></div></div>
-    
     <div class="card">
         <h2 style="color:var(--fall)">⚠️ 資金費率</h2>
         <div style="height: 30%; border-bottom: 2px solid #333;" class="scroll"><table><tbody id="fund-list"></tbody></table></div>
-        <h2 style="color:var(--double)">⏱️ 08:00 原始評分 (定格鎖定)</h2>
-        <div id="snap-list" class="scroll" style="background: #050505;"></div>
+        <h2 style="color:var(--double)">⏱️ 08:00 原始評分 (定格)</h2>
+        <div id="snap-list" class="scroll"></div>
     </div>
-    
     <div class="card">
         <h2 style="color:#bc8cff">💎 核心量能監控</h2>
         <div style="height: 48%;" class="scroll"><table id="table-old"></table></div>
@@ -59,21 +53,14 @@
         <div style="height: 48%;" class="scroll"><table id="table-new"></table></div>
     </div>
 </div>
-
 <script>
     let btcChange = 0, fundingMap = {}, dataMap = {}, potOld = [], potNew = [], lockedSnapshot = [];
-
     async function initSnapshot() {
         try {
             const timestamp = new Date().getTime();
-            const exchangeRes = await fetch(`https://fapi.binance.com/fapi/v1/exchangeInfo?t=${timestamp}`);
-            const exchangeData = await exchangeRes.json();
-            const futureSymbols = new Set(exchangeData.symbols.map(s => s.symbol));
-
             const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?t=${timestamp}`);
             const data = await res.json();
-            
-            lockedSnapshot = data.filter(d => futureSymbols.has(d.symbol) && d.symbol.endsWith('USDT')).map(d => {
+            lockedSnapshot = data.filter(d => d.symbol.endsWith('USDT')).map(d => {
                 const s = d.symbol.replace('USDT','');
                 const open = parseFloat(d.openPrice); 
                 const last = parseFloat(d.lastPrice);
@@ -83,11 +70,9 @@
                 if(!dataMap[s]) dataMap[s] = {lp: last, lastP: last, avg4hVol: 5000000};
                 return { s, open, originalScore: score };
             }).filter(x => x.originalScore >= 40);
-            
             renderSnapshot();
-        } catch (e) { console.error("Snapshot Error"); }
+        } catch (e) { console.error(e); }
     }
-
     function renderSnapshot() {
         const container = document.getElementById('snap-list');
         if(!container) return; container.innerHTML = '';
@@ -106,7 +91,6 @@
             }
         });
     }
-
     function connectWS() {
         const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
         ws.onmessage = (e) => {
@@ -125,12 +109,6 @@
                 const coreScore = (vol > 8000000) ? Math.min(100, Math.round(rsS + sqS + Math.min(25, (vol/10000000)*5) + 5)) : 0;
                 const trendScore = Math.min(100, Math.round(rsS + sqS + Math.min(25, (volRatio / 1.5) * 12)));
                 const desc = `${p24>btcChange?'超盤':'隨盤'} | 縮${range.toFixed(1)}% | ${volRatio.toFixed(1)}x`;
-                const sl = document.getElementById('strong-list');
-                let er = [...sl.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
-                if (p24 > 8.0) {
-                    if (!er) sl.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td style="color:var(--surge)">${p24}%</td></tr>`);
-                    else er.cells[1].innerText = `${p24}%`;
-                } else if (er) { er.remove(); }
                 if(coreScore >= 20) updateList(potOld, {s, score:coreScore, desc, isDouble:(trendScore>=20)}, 'table-old');
                 if(trendScore >= 20 && !potOld.find(x=>x.s===s)) updateList(potNew, {s, score:trendScore, desc, isDouble:false}, 'table-new');
                 const inst = ((p-dataMap[s].lp)/dataMap[s].lp)*100;
@@ -144,13 +122,11 @@
             renderSnapshot();
         };
     }
-
     function updateList(list, c, eid) {
         let item = list.find(i=>i.s===c.s);
         if(!item) { if(list.length<15) list.push(c); } else { Object.assign(item, c); }
         renderTable(list, eid);
     }
-
     function renderTable(list, eid) {
         const dom = document.getElementById(eid); dom.innerHTML = '';
         list.sort((a,b)=>b.score-a.score).forEach(it => {
@@ -158,7 +134,6 @@
             dom.insertAdjacentHTML('beforeend', `<tr><td style="text-align:left;padding-left:10px;"><span>${it.isDouble?'[雙] ':''}${it.s}</span> <span class="funding-tag ${Math.abs(fr)>=0.05?'funding-high':''}">${fr}%</span><br><span class="status-tag">${it.desc}</span></td><td style="color:var(--alert);font-weight:bold;font-size:13px;">${it.score}</td><td><button style="border:none;background:transparent;color:#666" onclick="location.reload()">✕</button></td></tr>`);
         });
     }
-
     async function updateFunding() {
         const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
         const data = await res.json();
@@ -170,7 +145,6 @@
             fundingMap[s] = fr;
         });
     }
-
     initSnapshot(); connectWS(); updateFunding(); setInterval(updateFunding, 15000);
 </script>
 </body>
