@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V164 | 防墜獵人版</title>
+    <title>HUNTER V165 | 4H支撐防守版</title>
     <style>
         body { background: radial-gradient(circle at top, #1a1c2c, #0d0e15); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; min-height: 100vh; }
         .header { background: rgba(30, 34, 54, 0.9); padding: 18px; border-radius: 12px; border: 1px solid #3d4465; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
@@ -109,6 +109,10 @@
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7, ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3])), avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
 
+            // 取得前4個小時(不含當前K)的最低點
+            const last4hLows = hK.slice(20, 24).map(k => parseFloat(k[3]));
+            const min4h = Math.min(...last4hLows);
+
             // 算分邏輯
             const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
             const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
@@ -117,15 +121,13 @@
             
             let totalScore = Math.round(s1 + s2 + s3 + s4);
             
-            // 【核心修正：防墜毀鎖定】
-            // 如果價格低於MA25，說明是空頭噴出，技術分直接扣至0，不予顯示
-            if (now < ma25) totalScore = 0;
+            // 【核心修正：跌破4H低點歸0】
+            if (now < min4h) totalScore = 0;
 
             const totalVol1m = parseFloat(mK[59][5]), takerVol1m = parseFloat(mK[59][9]), avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / 60;
             const vRatio = totalVol1m / avgVol1m, buyRatio = (takerVol1m / totalVol1m) * 100;
 
             let thrustLv = 1;
-            // 【衝刺等級修正：確保向上才加分】
             if (vRatio > 1.2 && now >= parseFloat(mK[58][4])) {
                 let base = vRatio * 1.8;
                 if (buyRatio > 65) base += 3;
