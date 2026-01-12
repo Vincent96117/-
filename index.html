@@ -8,7 +8,7 @@
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
         .control-panel { background: #252525; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #444; }
         input { background: #333; border: 1px solid #555; color: #fff; padding: 8px; border-radius: 4px; outline: none; width: 150px; }
-        #diag-box { background: #1a1a1a; border: 1px dashed #f2a900; padding: 15px; border-radius: 5px; display: none; margin-top: 10px; }
+        #diag-box { background: #1a1a1a; border: 1px dashed #f2a900; padding: 15px; border-radius: 5px; display: none; margin-top: 10px; line-height: 1.6; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 12px; text-align: center; }
         th { background: #252525; color: #f2a900; }
@@ -28,9 +28,10 @@
         <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動監控</button>
     </div>
 
-    <div class="control-panel">
+    <div class="control-panel" style="padding: 15px;">
         <input type="text" id="search-input" placeholder="搜尋幣種 (如: SOL)">
         <button class="btn" onclick="diagnoseSymbol()">🔍 診斷技術面</button>
+        <button class="btn" style="background:#555; color:#fff" onclick="clearBlacklist()">重設刪除名單</button>
         <div id="diag-box"></div>
     </div>
 
@@ -39,8 +40,8 @@
             <tr>
                 <th>類型</th>
                 <th>幣種</th>
-                <th>綜合技術分</th>
-                <th>資費 (±0.05)</th>
+                <th>綜合技術分 (滿分100)</th>
+                <th>資費 (±0.05優先)</th>
                 <th>數據 (波/量/距高)</th>
                 <th>24H 漲跌</th>
                 <th>管理</th>
@@ -53,7 +54,7 @@
     let isMonitoring = false;
     let timer = null;
     let userBlacklist = new Set();
-    const EXCLUDE_LIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
+    const EXCLUDE_LIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'USDCUSDT', 'FDUSDUSDT'];
 
     function toggleMonitor() {
         isMonitoring = !isMonitoring;
@@ -66,39 +67,41 @@
     const getMA = (arr, p) => arr.length < p ? 0 : arr.slice(-p).reduce((a, b) => a + b, 0) / p;
 
     async function getSymbolData(s) {
-        const [tData, fRes, hK] = await Promise.all([
-            fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json()),
-            fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${s}`).then(r=>r.json()),
-            fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json())
-        ]);
-        
-        const open = parseFloat(hK[24][1]), high = parseFloat(hK[24][2]), low = parseFloat(hK[24][3]), now = parseFloat(hK[24][4]);
-        const hCloses = hK.map(k=>parseFloat(k[4])), ma7 = getMA(hCloses, 7), ma25 = getMA(hCloses, 25);
-        const funding = parseFloat(fRes.lastFundingRate * 100);
+        try {
+            const [tData, fRes, hK] = await Promise.all([
+                fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json()),
+                fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${s}`).then(r=>r.json()),
+                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json())
+            ]);
+            
+            const open = parseFloat(hK[24][1]), high = parseFloat(hK[24][2]), low = parseFloat(hK[24][3]), now = parseFloat(hK[24][4]);
+            const hCloses = hK.map(k=>parseFloat(k[4])), ma7 = getMA(hCloses, 7), ma25 = getMA(hCloses, 25);
+            const funding = parseFloat(fRes.lastFundingRate * 100);
 
-        // 1. 波動分 (25分)
-        const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
-        const avgR = ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24;
-        const vRatio = (high - low) / (avgR || 0.001);
-        const vScore = Math.min(25, (vRatio / 1.8) * 25);
+            // 1. 波動分 (25分)
+            const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
+            const avgR = ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24;
+            const vRatio = (high - low) / (avgR || 0.001);
+            const vScore = Math.min(25, (vRatio / 1.8) * 25);
 
-        // 2. 糾結分 (25分)
-        const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
-        const tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0;
+            // 2. 糾結分 (25分)
+            const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
+            const tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0;
 
-        // 3. 量能分 (25分)
-        const qScore = Math.min(25, (parseFloat(tData.quoteVolume) / 40000000) * 12.5);
+            // 3. 量能分 (25分)
+            const qScore = Math.min(25, (parseFloat(tData.quoteVolume) / 40000000) * 12.5);
 
-        // 4. 突破分 (25分)
-        const recentH = Math.max(...hK.slice(-4).map(k=>parseFloat(k[2])));
-        const distToH = Math.abs(now - recentH) / recentH * 100;
-        const hScore = (distToH <= 2) ? 25 : 0;
+            // 4. 突破分 (25分)
+            const recentH = Math.max(...hK.slice(-4).map(k=>parseFloat(k[2])));
+            const distToH = Math.abs(now - recentH) / recentH * 100;
+            const hScore = (distToH <= 2) ? 25 : 0;
 
-        const totalScore = Math.round(vScore + tangleScore + qScore + hScore);
-        const isBull = (now >= open && now > ma7 && ma7 > ma25);
-        const isTangling = (funding >= -0.05 && funding <= 0.05);
+            const totalScore = Math.round(vScore + tangleScore + qScore + hScore);
+            const isBull = (now >= open && now > ma7 && ma7 > ma25);
+            const isTangling = (funding >= -0.05 && funding <= 0.05);
 
-        return { s, totalScore, vScore, tangleScore, qScore, hScore, funding, vRatio, distToH, change: tData.priceChangePercent, isBull, isTangling };
+            return { s, totalScore, vScore, tangleScore, qScore, hScore, funding, vRatio, distToH, change: tData.priceChangePercent, isBull, isTangling };
+        } catch(e) { return null; }
     }
 
     async function diagnoseSymbol() {
@@ -106,19 +109,18 @@
         if(!s) return; if(!s.endsWith('USDT')) s += 'USDT';
         const box = document.getElementById('diag-box');
         box.style.display = 'block'; box.innerHTML = "⏳ 診斷中...";
-        try {
-            const d = await getSymbolData(s);
-            box.innerHTML = `
-                <div style="font-weight:bold; color:#f2a900;">📊 ${s} 技術面分析 (總分: ${d.totalScore})</div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:12px; margin-top:5px;">
-                    <div>🌪️ 波動：${d.vScore.toFixed(1)} / 25</div>
-                    <div>🧶 糾結：${d.tangleScore.toFixed(1)} / 25</div>
-                    <div>📈 量能：${d.qScore.toFixed(1)} / 25</div>
-                    <div>🎯 突破：${d.hScore} / 25</div>
-                </div>
-                <div style="font-size:11px; color:#aaa; margin-top:5px;">資費提醒: ${d.funding}% ${d.isTangling?'(符合 0.05 糾結)':''}</div>
-            `;
-        } catch(e) { box.innerHTML = "找不到幣種"; }
+        const d = await getSymbolData(s);
+        if(!d) { box.innerHTML = "找不到幣種"; return; }
+        box.innerHTML = `
+            <div style="font-weight:bold; color:#f2a900; margin-bottom:5px;">📊 ${s} 技術面分析 (總分: ${d.totalScore})</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:12px;">
+                <div>🌪️ 波動：${d.vScore.toFixed(1)} / 25</div>
+                <div>🧶 糾結：${d.tangleScore.toFixed(1)} / 25</div>
+                <div>📈 量能：${d.qScore.toFixed(1)} / 25</div>
+                <div>🎯 突破：${d.hScore} / 25</div>
+            </div>
+            <div style="font-size:11px; color:#aaa; margin-top:5px;">資費提醒: ${d.funding.toFixed(4)}% ${d.isTangling?'(符合 0.05 糾結區)':''}</div>
+        `;
     }
 
     async function startScan() {
@@ -139,7 +141,7 @@
                 }
             }
 
-            // 排序邏輯：資費糾結(±0.05)置頂 > 按技術總分排
+            // 排序：資費糾結(±0.05)置頂 > 按技術總分排
             results.sort((a, b) => {
                 if (a.isTangling && !b.isTangling) return -1;
                 if (!a.isTangling && b.isTangling) return 1;
@@ -151,7 +153,7 @@
                     <td style="font-weight:bold; color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.isTangling ? '💎 資費糾結' : '📊 趨勢監控'}</td>
                     <td style="font-weight:bold;">${r.s.replace('USDT','')}</td>
                     <td><span class="score-box ${r.totalScore >= 80 ? 'score-100' : ''}">${r.totalScore}</span></td>
-                    <td style="font-weight:bold; color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding}%</td>
+                    <td style="font-weight:bold; color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding.toFixed(4)}%</td>
                     <td style="color:#aaa;">波:${r.vRatio.toFixed(1)}x|距高:${r.distToH.toFixed(1)}%</td>
                     <td style="color:#00ffcc">${r.change}%</td>
                     <td><button class="btn-del" onclick="deleteSymbol('${r.s.replace('USDT','')}')">❌</button></td>
@@ -162,6 +164,7 @@
     }
 
     function deleteSymbol(s) { userBlacklist.add(s + "USDT"); startScan(); }
+    function clearBlacklist() { userBlacklist.clear(); startScan(); }
 </script>
 </body>
 </html>
