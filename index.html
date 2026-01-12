@@ -2,17 +2,17 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V165 | 4H支撐防守版</title>
+    <title>HUNTER V167 | 終極穩定版</title>
     <style>
-        body { background: radial-gradient(circle at top, #1a1c2c, #0d0e15); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; min-height: 100vh; }
-        .header { background: rgba(30, 34, 54, 0.9); padding: 18px; border-radius: 12px; border: 1px solid #3d4465; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
+        body { background: radial-gradient(circle at top, #1a1c2c, #0d0e15); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; min-height: 100vh; margin: 0; }
+        .header { background: rgba(30, 34, 54, 0.9); padding: 18px; border-radius: 12px; border: 1px solid #3d4465; margin: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
         .monitor-bar { display: flex; gap: 35px; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #3d4465; }
         .index-item { display: flex; align-items: center; gap: 12px; }
         .index-name { color: #f2a900; font-weight: bold; font-size: 14px; }
         .index-price { font-family: 'Consolas', monospace; font-size: 19px; font-weight: bold; color: #ffffff; }
         .controls { display: flex; justify-content: space-between; align-items: center; }
         .search-group { display: flex; gap: 12px; align-items: center; }
-        table { width: 100%; border-collapse: separate; border-spacing: 0 6px; margin-top: 10px; }
+        table { width: calc(100% - 40px); border-collapse: separate; border-spacing: 0 6px; margin: 0 20px 20px 20px; }
         th { background: #161925; color: #f2a900; padding: 16px; border-bottom: 2px solid #3d4465; text-transform: uppercase; }
         td { background: #1e2236; padding: 14px; text-align: center; border-top: 1px solid #2d3250; border-bottom: 1px solid #2d3250; transition: 0.3s; }
         .row-tangling td { background: #1e2c36 !important; border-top-color: #00ffcc66; border-bottom-color: #00ffcc66; }
@@ -44,7 +44,7 @@
         </div>
         <div class="controls">
             <div class="search-group">
-                <input type="text" id="search-input" placeholder="🔍 抓幣(如 SOL)..." onkeydown="if(event.key==='Enter') searchFromBinance()">
+                <input type="text" id="search-input" placeholder="🔍 搜尋幣種(不限清單)..." onkeydown="if(event.key==='Enter') searchFromBinance()">
                 <button class="btn" onclick="searchFromBinance()" style="background:#3d4465; color:#fff;">搜尋幣安</button>
                 <button id="btn-sound" class="btn" onclick="toggleSound()" style="background:#2d3250;color:#eee;">🔊 聲音: 開</button>
             </div>
@@ -61,6 +61,7 @@
 
 <script>
     let isMonitoring = false, isSoundOn = true, timer = null, rawResults = [], blackList = new Set();
+    const hideList = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "BNXUSDT"];
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function toggleSound() { isSoundOn = !isSoundOn; document.getElementById('btn-sound').innerText = isSoundOn ? "🔊 聲音: 開" : "🔇 聲音: 關"; }
@@ -89,8 +90,11 @@
         if(!symbol.endsWith('USDT')) symbol += 'USDT';
         blackList.delete(symbol);
         const res = await getSymbolData(symbol);
-        if(res) { rawResults = [res, ...rawResults.filter(r => r.s !== symbol)]; renderTable(); document.getElementById('search-input').value = ""; }
-        else { alert("幣安找不到 " + symbol); }
+        if(res) { 
+            rawResults = [res, ...rawResults.filter(r => r.s !== symbol)]; 
+            renderTable(); 
+            document.getElementById('search-input').value = ""; 
+        } else { alert("幣安找不到 " + symbol); }
     }
 
     function getLight(score) { return score >= 25 ? 'light-green' : (score >= 12.5 ? 'light-yellow' : 'light-red'); }
@@ -104,46 +108,28 @@
                 fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=60`).then(r=>r.json())
             ]);
             if(tData.code === -1121) return null;
-
             const now = parseFloat(hK[24][4]), hCloses = hK.map(k=>parseFloat(k[4]));
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7, ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
+            const min4h = Math.min(...hK.slice(20, 24).map(k => parseFloat(k[3])));
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3])), avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
-
-            // 取得前4個小時(不含當前K)的最低點
-            const last4hLows = hK.slice(20, 24).map(k => parseFloat(k[3]));
-            const min4h = Math.min(...last4hLows);
-
-            // 算分邏輯
             const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
             const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
             const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5);
             const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
-            
             let totalScore = Math.round(s1 + s2 + s3 + s4);
-            
-            // 【核心修正：跌破4H低點歸0】
             if (now < min4h) totalScore = 0;
-
             const totalVol1m = parseFloat(mK[59][5]), takerVol1m = parseFloat(mK[59][9]), avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / 60;
             const vRatio = totalVol1m / avgVol1m, buyRatio = (takerVol1m / totalVol1m) * 100;
-
             let thrustLv = 1;
             if (vRatio > 1.2 && now >= parseFloat(mK[58][4])) {
                 let base = vRatio * 1.8;
                 if (buyRatio > 65) base += 3;
                 thrustLv = Math.max(2, Math.min(10, Math.round(base)));
             }
-
             const funding = parseFloat(fRes.lastFundingRate * 100);
             const isTangling = (funding >= -0.05 && funding <= 0.05);
             if (isMonitoring && thrustLv >= 8 && isTangling) playBeep();
-
-            return { 
-                s, totalScore, scores: [s1, s2, s3, s4], labels: ['波', '糾', '量', '趨'],
-                thrustLv, vRatio: vRatio.toFixed(1), buyRatio: buyRatio.toFixed(0),
-                tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1),
-                funding, change: tData.priceChangePercent, isTangling 
-            };
+            return { s, totalScore, scores: [s1, s2, s3, s4], labels: ['波', '糾', '量', '趨'], thrustLv, vRatio: vRatio.toFixed(1), buyRatio: buyRatio.toFixed(0), tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1), funding, change: tData.priceChangePercent, isTangling };
         } catch(e) { return null; }
     }
 
@@ -153,11 +139,13 @@
         let baseSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 30000000).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 35);
         let results = [];
         for (let d of baseSymbols) {
-            if(blackList.has(d.symbol)) continue;
+            if(blackList.has(d.symbol) || hideList.includes(d.symbol)) continue;
             const res = await getSymbolData(d.symbol);
             if (res && res.totalScore > 30) results.push(res);
         }
-        rawResults = results; renderTable();
+        // 按技術總分降序排列
+        rawResults = results.sort((a, b) => b.totalScore - a.totalScore);
+        renderTable();
     }
 
     function toggleMonitor() {
@@ -175,14 +163,10 @@
                 <td>${r.isTangling ? '💎 糾結' : '📊 趨勢'}</td>
                 <td style="font-weight:bold; color:#fff;">${r.s.replace('USDT','')}<span class="info-tag">🎯 ${r.tp}% / -${r.sl}%</span></td>
                 <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}">LV ${r.thrustLv}<span class="info-tag">${r.vRatio}x / ${r.buyRatio}%</span></td>
-                <td>
-                    <span class="score-box ${r.totalScore >= 80 ? 'score-alert' : 'score-normal'}">${r.totalScore}</span>
-                    <div class="light-bar">${r.scores.map((s, i) => `<div class="light-unit"><span class="light-label">${r.labels[i]}</span><div class="light ${getLight(s)}"></div></div>`).join('')}</div>
-                </td>
+                <td><span class="score-box ${r.totalScore >= 80 ? 'score-alert' : 'score-normal'}">${r.totalScore}</span><div class="light-bar">${r.scores.map((s, i) => `<div class="light-unit"><span class="light-label">${r.labels[i]}</span><div class="light ${getLight(s)}"></div></div>`).join('')}</div></td>
                 <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
                 <td style="color:#00ffcc">${r.change}%</td>
-            </tr>
-        `).join('');
+            </tr>`).join('');
     }
 </script>
 </body>
