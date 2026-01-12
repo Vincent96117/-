@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V141 高點突破監控</title>
+    <title>HUNTER PRO | V142 山寨爆發雷達</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
@@ -14,16 +14,16 @@
         .score-box { background: #444; color: #fff; padding: 4px 10px; border-radius: 3px; font-weight: bold; font-size: 15px; }
         .score-100 { background: linear-gradient(45deg, #f2a900, #ff5500); color: #fff; box-shadow: 0 0 15px #ff5500; }
         .btn { background: #f2a900; color: #000; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .info-text { font-size: 11px; color: #aaa; }
+        .info-text { font-size: 11px; color: #aaa; line-height: 1.4; }
     </style>
 </head>
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V141 高點區間 + 糾結突破</span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V142 山寨起爆雷達 (排除大幣)</span>
             <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
-        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動自動監控</button>
+        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動監控</button>
     </div>
 
     <table>
@@ -32,7 +32,7 @@
                 <th>類型</th>
                 <th>幣種</th>
                 <th>綜合評分</th>
-                <th>高點距離/量比</th>
+                <th>爆發數據 (波動/量/糾結)</th>
                 <th>資費 (±0.05)</th>
                 <th>24H 漲跌</th>
             </tr>
@@ -43,13 +43,14 @@
 <script>
     let isMonitoring = false;
     let timer = null;
+    const EXCLUDE_LIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
 
     function toggleMonitor() {
         isMonitoring = !isMonitoring;
         const btn = document.getElementById('btn-toggle');
-        btn.innerText = isMonitoring ? "🛑 停止監控" : "📡 啟動自動監控";
+        btn.innerText = isMonitoring ? "🛑 停止監控" : "📡 啟動監控";
         btn.style.background = isMonitoring ? "#ff4444" : "#f2a900";
-        if(isMonitoring) { startScan(); timer = setInterval(startScan, 8000); }
+        if(isMonitoring) { startScan(); timer = setInterval(startScan, 10000); }
         else { clearInterval(timer); }
     }
 
@@ -69,57 +70,64 @@
             const fundingMap = {};
             fData.forEach(f => { fundingMap[f.symbol] = parseFloat(f.lastFundingRate * 100).toFixed(4); });
 
-            // 護欄：過濾成交量低於 20M 的幣
-            let topSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 20000000).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 45);
+            // 排除大幣 + 基礎量能過濾
+            let topSymbols = tData.filter(d => 
+                d.symbol.endsWith('USDT') && 
+                !EXCLUDE_LIST.includes(d.symbol) &&
+                parseFloat(d.quoteVolume) > 15000000
+            ).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 50);
+
             let results = [];
 
             for (let d of topSymbols) {
                 const s = d.symbol;
-                const hK = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=24`).then(r=>r.json());
-                const dK = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1d&limit=30`).then(r=>r.json());
-
+                const hK = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json());
+                
                 const hCloses = hK.map(k=>parseFloat(k[4]));
-                const hHighs = hK.map(k=>parseFloat(k[2])); // 取得最高價
+                const hHighs = hK.map(k=>parseFloat(k[2]));
+                const hLows = hK.map(k=>parseFloat(k[3]));
                 const now = hCloses[hCloses.length-1];
 
-                // --- 核心條件 1: 當前價格要在 4 小時最高點的上下 2% 內 ---
-                const recent4hHigh = Math.max(...hHighs.slice(-4)); 
-                const distToHigh = Math.abs(now - recent4hHigh) / recent4hHigh * 100;
+                // 1. 波動率爆發 (25分)
+                const hourlyRanges = hHighs.map((h, i) => h - hLows[i]);
+                const avgRange = hourlyRanges.slice(0, -1).reduce((a,b)=>a+b,0) / 24;
+                const currentRange = hourlyRanges[hourlyRanges.length-1];
+                const volaRatio = currentRange / (avgRange || 1);
+                let volaSScore = Math.min(25, (volaRatio / 2) * 25);
 
-                if (distToHigh > 2) continue; // 不在 4 小時高點附近的直接踢掉
+                // 2. 均線糾結與站上 (25分)
+                const ma7 = getMA(hCloses, 7);
+                const ma25 = getMA(hCloses, 25);
+                const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
+                let tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0;
+                if (now < ma7 || now < ma25) tangleScore *= 0.5; // 未站上減半
 
-                // --- 核心條件 2: 均線糾結度 (4H 模擬) ---
-                const ma7_4h = getMA(hCloses, 7); 
-                const ma25_4h = getMA(hCloses, 25);
-                const hDiff = Math.abs(ma7_4h - ma25_4h) / ma25_4h * 100;
+                // 3. 量比 (25分)
+                const totalVol = parseFloat(d.quoteVolume);
+                const avgVolHourly = totalVol / 24;
+                const lastVol = parseFloat(d.lastQty) * parseFloat(d.lastPrice); // 概算當下量
+                const volRatio = (totalVol / 30000000); // 這裡維持一個市場活躍度基準
+                let vScore = Math.min(25, volRatio * 8);
 
-                // 排除絕對直線的死幣 (PAXG)
-                if (hDiff < 0.05) continue;
+                // 4. 高點位置 (25分)
+                const recentHigh = Math.max(...hHighs.slice(-4));
+                const distToHigh = Math.abs(now - recentHigh) / recentHigh * 100;
+                let highScore = (distToHigh < 3) ? 25 : (distToHigh < 5 ? 10 : 0);
 
-                let hScore = (hDiff < 1.5) ? 40 : (hDiff < 3 ? 20 : 10);
-                if (now > ma7_4h && now > ma25_4h) hScore += 10;
-
-                // --- 核心條件 3: 日線支撐 ---
-                const dCloses = dK.map(k=>parseFloat(k[4]));
-                const ma25_d = getMA(dCloses, 25);
-                let dScore = (now > ma25_d) ? 10 : 0;
-
-                // --- 核心條件 4: 量比 ---
-                let volRatio = parseFloat(d.quoteVolume) / 40000000;
-                let vScore = Math.min(40, volRatio * 15);
-
-                let finalScore = Math.round(hScore + dScore + vScore);
+                let finalScore = Math.round(volaSScore + tangleScore + vScore + highScore);
                 const funding = parseFloat(fundingMap[s] || 0);
                 const isTangling = (funding >= -0.05 && funding <= 0.05);
 
-                results.push({
-                    symbol: s.replace('USDT',''),
-                    score: Math.min(100, finalScore),
-                    funding: funding,
-                    isTangling: isTangling,
-                    info: `距高:${distToHigh.toFixed(1)}%|量:${volRatio.toFixed(1)}x`,
-                    change: d.priceChangePercent
-                });
+                if (finalScore >= 35) {
+                    results.push({
+                        symbol: s.replace('USDT',''),
+                        score: Math.min(100, finalScore),
+                        funding: funding,
+                        isTangling: isTangling,
+                        info: `波:${volaRatio.toFixed(1)}x|糾:${hDiff.toFixed(1)}%|量:${volRatio.toFixed(1)}x`,
+                        change: d.priceChangePercent
+                    });
+                }
             }
 
             results.sort((a, b) => {
@@ -130,11 +138,11 @@
 
             body.innerHTML = results.map(r => `
                 <tr class="${r.isTangling ? 'row-tangling' : ''}">
-                    <td>${r.isTangling ? '<span class="tangling-tag">糾結突破</span>' : '強勢追蹤'}</td>
-                    <td style="font-weight:bold; font-size:15px;">${r.symbol}</td>
-                    <td><span class="score-box ${r.score >= 90 ? 'score-100' : ''}">${r.score}</span></td>
+                    <td>${r.isTangling ? '<span class="tangling-tag">糾結突破</span>' : '一般'}</td>
+                    <td style="font-weight:bold; font-size:14px;">${r.symbol}</td>
+                    <td><span class="score-box ${r.score >= 85 ? 'score-100' : ''}">${r.score}</span></td>
                     <td class="info-text">${r.info}</td>
-                    <td style="font-weight:bold; color:${r.isTangling?'#ff4444':'#eee'}">${r.funding}%</td>
+                    <td style="font-weight:bold;">${r.funding}%</td>
                     <td style="color:${parseFloat(r.change)>=0 ? '#00ffcc':'#ff6666'}">${r.change}%</td>
                 </tr>
             `).join('');
