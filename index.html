@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V139 糾結起爆監控</title>
+    <title>HUNTER PRO | V141 高點突破監控</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
@@ -20,7 +20,7 @@
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V139 糾結突破監控 (雙週期版)</span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V141 高點區間 + 糾結突破</span>
             <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
         <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動自動監控</button>
@@ -32,7 +32,7 @@
                 <th>類型</th>
                 <th>幣種</th>
                 <th>綜合評分</th>
-                <th>糾結度/量比</th>
+                <th>高點距離/量比</th>
                 <th>資費 (±0.05)</th>
                 <th>24H 漲跌</th>
             </tr>
@@ -69,52 +69,57 @@
             const fundingMap = {};
             fData.forEach(f => { fundingMap[f.symbol] = parseFloat(f.lastFundingRate * 100).toFixed(4); });
 
-            // 取成交量前 40 名，確保分析質量
-            let topSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 10000000).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 40);
+            // 護欄：過濾成交量低於 20M 的幣
+            let topSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 20000000).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 45);
             let results = [];
 
             for (let d of topSymbols) {
                 const s = d.symbol;
-                const [dK, hK] = await Promise.all([
-                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1d&limit=30`).then(r=>r.json()),
-                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=4h&limit=30`).then(r=>r.json())
-                ]);
+                const hK = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=24`).then(r=>r.json());
+                const dK = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1d&limit=30`).then(r=>r.json());
 
-                const dCloses = dK.map(k=>parseFloat(k[4]));
                 const hCloses = hK.map(k=>parseFloat(k[4]));
-                const now = dCloses[dCloses.length-1];
+                const hHighs = hK.map(k=>parseFloat(k[2])); // 取得最高價
+                const now = hCloses[hCloses.length-1];
 
-                // 1. 小週期(4H)糾結與站上 (40分)
-                const ma7_4h = getMA(hCloses, 7);
+                // --- 核心條件 1: 當前價格要在 4 小時最高點的上下 2% 內 ---
+                const recent4hHigh = Math.max(...hHighs.slice(-4)); 
+                const distToHigh = Math.abs(now - recent4hHigh) / recent4hHigh * 100;
+
+                if (distToHigh > 2) continue; // 不在 4 小時高點附近的直接踢掉
+
+                // --- 核心條件 2: 均線糾結度 (4H 模擬) ---
+                const ma7_4h = getMA(hCloses, 7); 
                 const ma25_4h = getMA(hCloses, 25);
                 const hDiff = Math.abs(ma7_4h - ma25_4h) / ma25_4h * 100;
-                let hScore = (hDiff < 1.5) ? 25 : (hDiff < 3 ? 15 : 0); 
-                if (now > ma7_4h && now > ma25_4h) hScore += 15; 
 
-                // 2. 大週期(日線)趨勢支撐 (20分)
+                // 排除絕對直線的死幣 (PAXG)
+                if (hDiff < 0.05) continue;
+
+                let hScore = (hDiff < 1.5) ? 40 : (hDiff < 3 ? 20 : 10);
+                if (now > ma7_4h && now > ma25_4h) hScore += 10;
+
+                // --- 核心條件 3: 日線支撐 ---
+                const dCloses = dK.map(k=>parseFloat(k[4]));
                 const ma25_d = getMA(dCloses, 25);
-                let dScore = (now > ma25_d) ? 20 : 0;
+                let dScore = (now > ma25_d) ? 10 : 0;
 
-                // 3. 異常量比 (40分)
-                // 量比 = (24H總量/24) 作為平均，當前量由 ticker 估算
-                let avgVolHourly = parseFloat(d.quoteVolume) / 24;
-                let volRatio = (parseFloat(d.quoteVolume) / 30000000); // 這裡以30M為一個活躍基準
-                let vScore = Math.min(40, volRatio * 12);
+                // --- 核心條件 4: 量比 ---
+                let volRatio = parseFloat(d.quoteVolume) / 40000000;
+                let vScore = Math.min(40, volRatio * 15);
 
                 let finalScore = Math.round(hScore + dScore + vScore);
                 const funding = parseFloat(fundingMap[s] || 0);
                 const isTangling = (funding >= -0.05 && funding <= 0.05);
 
-                if (finalScore >= 40) {
-                    results.push({
-                        symbol: s.replace('USDT',''),
-                        score: Math.min(100, finalScore),
-                        funding: funding,
-                        isTangling: isTangling,
-                        info: `糾:${hDiff.toFixed(1)}%|量:${volRatio.toFixed(1)}x`,
-                        change: d.priceChangePercent
-                    });
-                }
+                results.push({
+                    symbol: s.replace('USDT',''),
+                    score: Math.min(100, finalScore),
+                    funding: funding,
+                    isTangling: isTangling,
+                    info: `距高:${distToHigh.toFixed(1)}%|量:${volRatio.toFixed(1)}x`,
+                    change: d.priceChangePercent
+                });
             }
 
             results.sort((a, b) => {
@@ -125,7 +130,7 @@
 
             body.innerHTML = results.map(r => `
                 <tr class="${r.isTangling ? 'row-tangling' : ''}">
-                    <td>${r.isTangling ? '<span class="tangling-tag">糾結突破</span>' : '趨勢掃描'}</td>
+                    <td>${r.isTangling ? '<span class="tangling-tag">糾結突破</span>' : '強勢追蹤'}</td>
                     <td style="font-weight:bold; font-size:15px;">${r.symbol}</td>
                     <td><span class="score-box ${r.score >= 90 ? 'score-100' : ''}">${r.score}</span></td>
                     <td class="info-text">${r.info}</td>
