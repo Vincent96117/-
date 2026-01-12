@@ -2,28 +2,37 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V157 | 技術拆解版</title>
+    <title>HUNTER V159 | 結構標記版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
-        .header { background: #111; padding: 20px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
-        .monitor-bar { display: flex; gap: 30px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #222; }
+        .header { background: #111; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
+        .monitor-bar { display: flex; gap: 30px; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 1px solid #222; }
         .index-item { display: flex; align-items: center; gap: 10px; }
         .index-name { color: #f2a900; font-weight: bold; font-size: 15px; }
         .index-price { font-family: 'Consolas', monospace; font-size: 18px; font-weight: bold; color: #fff; }
+        
         .controls { display: flex; justify-content: space-between; align-items: center; }
-        .search-group { display: flex; gap: 15px; }
-        table { width: 100%; border-collapse: collapse; }
+        .legend { font-size: 11px; color: #888; background: #222; padding: 5px 10px; border-radius: 4px; border: 1px solid #333; }
+        .legend span { color: #f2a900; font-weight: bold; margin-right: 5px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #333; padding: 12px; text-align: center; }
         th { background: #1a1a1a; color: #f2a900; }
-        .row-tangling { background: rgba(0, 255, 204, 0.08) !important; border-left: 4px solid #00ffcc; }
+        .row-tangling { background: rgba(0, 255, 204, 0.1) !important; border-left: 4px solid #00ffcc; }
         .lv-high { color: #ff4444; font-weight: bold; text-shadow: 0 0 8px #ff4444; animation: blink 0.8s infinite; }
         @keyframes blink { 50% { opacity: 0.5; } }
-        .score-box { background: #333; color: #fff; padding: 5px; border-radius: 4px; font-weight: bold; border: 1px solid #444; display: inline-block; min-width: 40px; }
-        .score-detail { font-size: 9px; color: #aaa; display: block; margin-top: 4px; letter-spacing: 1px; }
-        .info-tag { font-size: 10px; color: #777; display: block; margin-top: 3px; }
-        .btn { border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        input { background: #111; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 4px; width: 180px; }
-        .del-btn { color: #ff4444; cursor: pointer; font-size: 16px; }
+        
+        .score-box { background: #333; color: #fff; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 16px; border: 1px solid #444; }
+        .light-bar { display: flex; justify-content: center; gap: 4px; margin-top: 6px; }
+        .light { width: 12px; height: 4px; border-radius: 2px; }
+        .light-green { background: #00ffcc; box-shadow: 0 0 5px #00ffcc; }
+        .light-yellow { background: #f2a900; }
+        .light-red { background: #ff4444; }
+
+        .info-tag { font-size: 10px; color: #888; display: block; margin-top: 3px; }
+        .btn { border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        input { background: #222; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 4px; width: 160px; }
+        .del-btn { color: #ff4444; cursor: pointer; font-size: 18px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -31,32 +40,35 @@
         <div class="monitor-bar">
             <div class="index-item">
                 <span class="index-name">BTC</span>
-                <span id="btc-price" class="index-price">載入中...</span>
+                <span id="btc-price" class="index-price">--</span>
                 <span id="btc-chg">--</span>
             </div>
             <div class="index-item">
                 <span class="index-name">ETH</span>
-                <span id="eth-price" class="index-price">載入中...</span>
+                <span id="eth-price" class="index-price">--</span>
                 <span id="eth-chg">--</span>
             </div>
         </div>
         <div class="controls">
-            <div class="search-group">
+            <div style="display:flex; gap:15px; align-items:center;">
                 <input type="text" id="search-input" placeholder="🔍 搜尋幣種..." oninput="renderTable()">
-                <button id="btn-sound" class="btn" onclick="toggleSound()" style="background:#222;color:#bbb;border:1px solid #444;">🔊 聲音: 開</button>
+                <div class="legend">燈號順序：<span>波</span>波動 | <span>糾</span>糾結 | <span>量</span>量能 | <span>趨</span>趨勢</div>
             </div>
-            <button id="btn-toggle" class="btn" onclick="toggleMonitor()" style="background:#f2a900;color:#000;">啟動監控掃描</button>
+            <div>
+                <button id="btn-sound" class="btn" onclick="toggleSound()" style="background:#333;color:#eee; margin-right:10px;">🔊 聲音: 開</button>
+                <button id="btn-toggle" class="btn" onclick="toggleMonitor()" style="background:#f2a900;color:#000;">啟動監控掃描</button>
+            </div>
         </div>
     </div>
 
     <table>
         <thead>
             <tr>
-                <th width="50">操作</th>
+                <th width="50">✕</th>
                 <th width="80">類型</th>
-                <th>幣種與區間</th>
-                <th>🚀 衝刺等級 (速度/主動買)</th>
-                <th>技術總分 (分項拆解)</th>
+                <th>幣種 / ATR區間</th>
+                <th>🚀 衝刺等級 (速度/主動)</th>
+                <th>技術總分 (波|糾|量|趨)</th>
                 <th>資費 (±0.05)</th>
                 <th>24H 漲跌</th>
             </tr>
@@ -65,8 +77,7 @@
     </table>
 
 <script>
-    let isMonitoring = false, isSoundOn = true, timer = null;
-    let rawResults = [], blackList = new Set();
+    let isMonitoring = false, isSoundOn = true, timer = null, rawResults = [], blackList = new Set();
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function toggleSound() { isSoundOn = !isSoundOn; document.getElementById('btn-sound').innerText = isSoundOn ? "🔊 聲音: 開" : "🔇 聲音: 關"; }
@@ -102,6 +113,12 @@
 
     function removeSymbol(s) { blackList.add(s); renderTable(); }
 
+    function getLight(score) {
+        if (score >= 25) return 'light-green';
+        if (score >= 12.5) return 'light-yellow';
+        return 'light-red';
+    }
+
     async function getSymbolData(s) {
         try {
             const [tData, fRes, hK, mK] = await Promise.all([
@@ -115,12 +132,11 @@
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7, ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3])), avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
 
-            // 技術拆解：[波動|糾結|量能|趨勢]
-            const s1 = Math.round(Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25));
+            const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
             const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
-            const s3 = Math.round(Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5));
+            const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5);
             const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
-            const totalScore = s1 + s2 + s3 + s4;
+            const totalScore = Math.round(s1 + s2 + s3 + s4);
 
             const totalVol1m = parseFloat(mK[59][5]), takerVol1m = parseFloat(mK[59][9]), avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / 60;
             const vRatio = totalVol1m / avgVol1m, buyRatio = (takerVol1m / totalVol1m) * 100;
@@ -137,7 +153,8 @@
             if (isMonitoring && thrustLv >= 8 && isTangling) playBeep();
 
             return { 
-                s, totalScore, sDetail: `${s1}|${s2}|${s3}|${s4}`, thrustLv, vRatio: vRatio.toFixed(1), buyRatio: buyRatio.toFixed(0),
+                s, totalScore, lights: [getLight(s1), getLight(s2), getLight(s3), getLight(s4)],
+                thrustLv, vRatio: vRatio.toFixed(1), buyRatio: buyRatio.toFixed(0),
                 tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1),
                 funding, change: tData.priceChangePercent, isTangling 
             };
@@ -166,7 +183,12 @@
                 <td>${r.isTangling ? '💎 糾結' : '📊 趨勢'}</td>
                 <td style="font-weight:bold;">${r.s.replace('USDT','')}<span class="info-tag">🎯 ${r.tp}% / -${r.sl}%</span></td>
                 <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}">LV ${r.thrustLv}<span class="info-tag">${r.vRatio}x / ${r.buyRatio}%</span></td>
-                <td><span class="score-box">${r.totalScore}</span><span class="score-detail">${r.sDetail}</span></td>
+                <td>
+                    <span class="score-box">${r.totalScore}</span>
+                    <div class="light-bar">
+                        ${r.lights.map(l => `<div class="light ${l}"></div>`).join('')}
+                    </div>
+                </td>
                 <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding.toFixed(4)}%</td>
                 <td style="color:#00ffcc">${r.change}%</td>
             </tr>
