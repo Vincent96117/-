@@ -2,32 +2,23 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V160 | 專業舒適版</title>
+    <title>HUNTER V162 | 秒刪主動搜尋版</title>
     <style>
-        /* 視覺舒適化調整 */
-        body { background: #121212; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; font-size: 13px; }
+        body { background: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { background: #1e1e1e; padding: 18px; border-radius: 10px; border: 1px solid #333; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        
         .monitor-bar { display: flex; gap: 35px; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #2a2a2a; }
         .index-item { display: flex; align-items: center; gap: 12px; }
         .index-name { color: #f2a900; font-weight: bold; font-size: 14px; }
         .index-price { font-family: 'Consolas', monospace; font-size: 18px; font-weight: bold; color: #ffffff; }
-        
         .controls { display: flex; justify-content: space-between; align-items: center; }
         .search-group { display: flex; gap: 12px; align-items: center; }
-        
         table { width: 100%; border-collapse: separate; border-spacing: 0 4px; margin-top: 10px; }
-        th { background: #1a1a1a; color: #f2a900; padding: 15px; border-bottom: 2px solid #333; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        th { background: #1a1a1a; color: #f2a900; padding: 15px; border-bottom: 2px solid #333; }
         td { background: #1e1e1e; padding: 12px; text-align: center; border-top: 1px solid #2a2a2a; border-bottom: 1px solid #2a2a2a; }
-        
-        /* 橫向掃描線顏色調整 */
         .row-tangling td { background: #1a2421 !important; border-top-color: #00ffcc44; border-bottom-color: #00ffcc44; }
         .row-tangling td:first-child { border-left: 4px solid #00ffcc; }
-
         .lv-high { color: #ff5252; font-weight: bold; text-shadow: 0 0 10px rgba(255,82,82,0.5); animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0.6; } }
-        
-        /* 燈號標記化 */
         .score-box { background: #2a2a2a; color: #fff; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 18px; border: 1px solid #444; margin-bottom: 6px; display: inline-block; }
         .light-bar { display: flex; justify-content: center; gap: 6px; }
         .light-unit { display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -36,32 +27,23 @@
         .light-green { background: #00ffcc; box-shadow: 0 0 5px #00ffcc; }
         .light-yellow { background: #f2a900; }
         .light-red { background: #ff5252; }
-
         .info-tag { font-size: 10px; color: #888; display: block; margin-top: 4px; }
         .btn { border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn:hover { opacity: 0.8; }
         input { background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 6px; width: 180px; }
-        .del-btn { color: #666; cursor: pointer; font-size: 18px; transition: 0.2s; }
-        .del-btn:hover { color: #ff5252; transform: scale(1.2); }
+        .del-btn { color: #666; cursor: pointer; font-size: 18px; font-weight: bold; }
+        .del-btn:hover { color: #ff5252; }
     </style>
 </head>
 <body>
     <div class="header">
         <div class="monitor-bar">
-            <div class="index-item">
-                <span class="index-name">BTC</span>
-                <span id="btc-price" class="index-price">--</span>
-                <span id="btc-chg">--</span>
-            </div>
-            <div class="index-item">
-                <span class="index-name">ETH</span>
-                <span id="eth-price" class="index-price">--</span>
-                <span id="eth-chg">--</span>
-            </div>
+            <div class="index-item"><span class="index-name">BTC</span><span id="btc-price" class="index-price">--</span><span id="btc-chg">--</span></div>
+            <div class="index-item"><span class="index-name">ETH</span><span id="eth-price" class="index-price">--</span><span id="eth-chg">--</span></div>
         </div>
         <div class="controls">
             <div class="search-group">
-                <input type="text" id="search-input" placeholder="🔍 搜尋幣種..." oninput="renderTable()">
+                <input type="text" id="search-input" placeholder="🔍 輸入幣種(如 SOL)..." onkeydown="if(event.key==='Enter') searchFromBinance()">
+                <button class="btn" onclick="searchFromBinance()" style="background:#444; color:#fff;">搜尋幣安</button>
                 <button id="btn-sound" class="btn" onclick="toggleSound()" style="background:#333;color:#eee;">🔊 聲音: 開</button>
             </div>
             <button id="btn-toggle" class="btn" onclick="toggleMonitor()" style="background:#f2a900;color:#000;">啟動監控掃描</button>
@@ -70,15 +52,7 @@
 
     <table>
         <thead>
-            <tr>
-                <th width="50">✕</th>
-                <th width="100">類型</th>
-                <th>幣種 / ATR區間</th>
-                <th>🚀 衝刺等級 (速度/主動)</th>
-                <th>技術總分 (波|糾|量|趨)</th>
-                <th>資費 (±0.05)</th>
-                <th>24H 漲跌</th>
-            </tr>
+            <tr><th width="50">✕</th><th width="100">類型</th><th>幣種 / ATR區間</th><th>🚀 衝刺等級 (速度/主動)</th><th>技術總分 (波|糾|量|趨)</th><th>資費 (±0.05)</th><th>24H 漲跌</th></tr>
         </thead>
         <tbody id="list-body"></tbody>
     </table>
@@ -110,15 +84,30 @@
     }
     setInterval(updateIndex, 3000); updateIndex();
 
-    function toggleMonitor() {
-        isMonitoring = !isMonitoring;
-        const btn = document.getElementById('btn-toggle');
-        btn.innerText = isMonitoring ? "🛑 停止監控" : "啟動監控掃描";
-        btn.style.background = isMonitoring ? "#ff5252" : "#f2a900";
-        if(isMonitoring) { startScan(); timer = setInterval(startScan, 15000); } else { clearInterval(timer); }
+    // 核心修正：物理秒殺刪除
+    function removeSymbol(s) {
+        blackList.add(s); // 加入黑名單阻止下次掃描跑出來
+        rawResults = rawResults.filter(r => r.s !== s); // 立即從當前數據陣列中剔除
+        renderTable(); // 立即重新渲染畫面
     }
 
-    function removeSymbol(s) { blackList.add(s); renderTable(); }
+    async function searchFromBinance() {
+        let symbol = document.getElementById('search-input').value.toUpperCase().trim();
+        if(!symbol) return;
+        if(!symbol.endsWith('USDT')) symbol += 'USDT';
+        
+        // 搜尋時如果是在黑名單，先解除
+        blackList.delete(symbol);
+        
+        const res = await getSymbolData(symbol);
+        if(res) {
+            rawResults = [res, ...rawResults.filter(r => r.s !== symbol)];
+            renderTable();
+            document.getElementById('search-input').value = ""; // 搜尋完清空
+        } else {
+            alert("幣安找不到 " + symbol);
+        }
+    }
 
     function getLight(score) {
         if (score >= 25) return 'light-green';
@@ -134,7 +123,8 @@
                 fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json()),
                 fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=60`).then(r=>r.json())
             ]);
-            
+            if(tData.code === -1121) return null;
+
             const now = parseFloat(hK[24][4]), hCloses = hK.map(k=>parseFloat(k[4]));
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7, ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3])), avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
@@ -160,9 +150,7 @@
             if (isMonitoring && thrustLv >= 8 && isTangling) playBeep();
 
             return { 
-                s, totalScore, 
-                scores: [s1, s2, s3, s4],
-                labels: ['波', '糾', '量', '趨'],
+                s, totalScore, scores: [s1, s2, s3, s4], labels: ['波', '糾', '量', '趨'],
                 thrustLv, vRatio: vRatio.toFixed(1), buyRatio: buyRatio.toFixed(0),
                 tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1),
                 funding, change: tData.priceChangePercent, isTangling 
@@ -171,6 +159,7 @@
     }
 
     async function startScan() {
+        if (!isMonitoring) return;
         const tData = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr').then(r=>r.json());
         let baseSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 30000000).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 35);
         let results = [];
@@ -182,27 +171,22 @@
         rawResults = results; renderTable();
     }
 
+    function toggleMonitor() {
+        isMonitoring = !isMonitoring;
+        const btn = document.getElementById('btn-toggle');
+        btn.innerText = isMonitoring ? "🛑 停止監控" : "啟動監控掃描";
+        btn.style.background = isMonitoring ? "#ff5252" : "#f2a900";
+        if(isMonitoring) { startScan(); timer = setInterval(startScan, 15000); } else { clearInterval(timer); }
+    }
+
     function renderTable() {
-        const keyword = document.getElementById('search-input').value.toUpperCase();
-        let filtered = rawResults.filter(r => r.s.includes(keyword));
-        filtered.sort((a, b) => (a.isTangling === b.isTangling) ? (b.totalScore - a.totalScore) : (a.isTangling ? -1 : 1));
-        document.getElementById('list-body').innerHTML = filtered.map(r => `
+        document.getElementById('list-body').innerHTML = rawResults.map(r => `
             <tr class="${r.isTangling ? 'row-tangling' : ''}">
                 <td><span class="del-btn" onclick="removeSymbol('${r.s}')">✕</span></td>
                 <td>${r.isTangling ? '💎 糾結' : '📊 趨勢'}</td>
                 <td style="font-weight:bold;">${r.s.replace('USDT','')}<span class="info-tag">🎯 ${r.tp}% / -${r.sl}%</span></td>
                 <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}">LV ${r.thrustLv}<span class="info-tag">${r.vRatio}x / ${r.buyRatio}%</span></td>
-                <td>
-                    <span class="score-box">${r.totalScore}</span>
-                    <div class="light-bar">
-                        ${r.scores.map((s, i) => `
-                            <div class="light-unit">
-                                <span class="light-label">${r.labels[i]}</span>
-                                <div class="light ${getLight(s)}"></div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </td>
+                <td><span class="score-box">${r.totalScore}</span><div class="light-bar">${r.scores.map((s, i) => `<div class="light-unit"><span class="light-label">${r.labels[i]}</span><div class="light ${getLight(s)}"></div></div>`).join('')}</div></td>
                 <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding.toFixed(4)}%</td>
                 <td style="color:#00ffcc">${r.change}%</td>
             </tr>
