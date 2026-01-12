@@ -2,38 +2,27 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V163 | 鮮豔閃爍版</title>
+    <title>HUNTER V164 | 防墜獵人版</title>
     <style>
-        /* 整體背景鮮豔化：深藍灰漸層 */
         body { background: radial-gradient(circle at top, #1a1c2c, #0d0e15); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; min-height: 100vh; }
-        
         .header { background: rgba(30, 34, 54, 0.9); padding: 18px; border-radius: 12px; border: 1px solid #3d4465; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
         .monitor-bar { display: flex; gap: 35px; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #3d4465; }
         .index-item { display: flex; align-items: center; gap: 12px; }
         .index-name { color: #f2a900; font-weight: bold; font-size: 14px; }
         .index-price { font-family: 'Consolas', monospace; font-size: 19px; font-weight: bold; color: #ffffff; }
-        
         .controls { display: flex; justify-content: space-between; align-items: center; }
         .search-group { display: flex; gap: 12px; align-items: center; }
-        
         table { width: 100%; border-collapse: separate; border-spacing: 0 6px; margin-top: 10px; }
         th { background: #161925; color: #f2a900; padding: 16px; border-bottom: 2px solid #3d4465; text-transform: uppercase; }
         td { background: #1e2236; padding: 14px; text-align: center; border-top: 1px solid #2d3250; border-bottom: 1px solid #2d3250; transition: 0.3s; }
-        
-        /* 糾結行效果 */
         .row-tangling td { background: #1e2c36 !important; border-top-color: #00ffcc66; border-bottom-color: #00ffcc66; }
         .row-tangling td:first-child { border-left: 5px solid #00ffcc; border-radius: 4px 0 0 4px; }
-
-        /* 技術總分動態顏色：平時黃，過80紅閃 */
-        .score-box { padding: 8px 16px; border-radius: 6px; font-weight: 900; font-size: 20px; border: 1px solid #444; display: inline-block; transition: 0.3s; }
+        .score-box { padding: 8px 16px; border-radius: 6px; font-weight: 900; font-size: 20px; border: 1px solid #444; display: inline-block; }
         .score-normal { color: #f2a900; background: #2a2a2a; border-color: #f2a900; }
         .score-alert { color: #ff3e3e; background: #3a1a1a; border-color: #ff3e3e; box-shadow: 0 0 15px #ff3e3e; animation: alert-blink 0.6s infinite; }
-        
         @keyframes alert-blink { 50% { opacity: 0.6; transform: scale(1.05); } }
         @keyframes blink { 50% { opacity: 0.6; } }
         .lv-high { color: #ff5252; font-weight: bold; text-shadow: 0 0 10px #ff5252; animation: blink 1s infinite; }
-
-        /* 燈號單位 */
         .light-bar { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
         .light-unit { display: flex; flex-direction: column; align-items: center; gap: 3px; }
         .light-label { font-size: 9px; color: #999; font-weight: bold; }
@@ -41,12 +30,9 @@
         .light-green { background: #00ffcc; box-shadow: 0 0 8px #00ffcc; }
         .light-yellow { background: #f2a900; }
         .light-red { background: #ff5252; }
-
-        .btn { border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn { border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         input { background: #2d3250; border: 1px solid #3d4465; color: #fff; padding: 10px 14px; border-radius: 8px; width: 200px; }
-        input:focus { border-color: #f2a900; outline: none; }
         .del-btn { color: #666; cursor: pointer; font-size: 20px; font-weight: bold; }
-        .del-btn:hover { color: #ff5252; transform: scale(1.2); }
         .info-tag { font-size: 11px; color: #aaa; display: block; margin-top: 5px; }
     </style>
 </head>
@@ -78,12 +64,7 @@
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function toggleSound() { isSoundOn = !isSoundOn; document.getElementById('btn-sound').innerText = isSoundOn ? "🔊 聲音: 開" : "🔇 聲音: 關"; }
-    function playBeep() {
-        if (!isSoundOn) return;
-        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-        o.frequency.setValueAtTime(1000, audioCtx.currentTime); g.gain.setValueAtTime(0.05, audioCtx.currentTime);
-        o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.1);
-    }
+    function playBeep() { if (!isSoundOn) return; const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.setValueAtTime(1000, audioCtx.currentTime); g.gain.setValueAtTime(0.05, audioCtx.currentTime); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.1); }
 
     async function updateIndex() {
         try {
@@ -100,11 +81,7 @@
     }
     setInterval(updateIndex, 3000); updateIndex();
 
-    function removeSymbol(s) {
-        blackList.add(s); 
-        rawResults = rawResults.filter(r => r.s !== s); 
-        renderTable(); 
-    }
+    function removeSymbol(s) { blackList.add(s); rawResults = rawResults.filter(r => r.s !== s); renderTable(); }
 
     async function searchFromBinance() {
         let symbol = document.getElementById('search-input').value.toUpperCase().trim();
@@ -112,20 +89,11 @@
         if(!symbol.endsWith('USDT')) symbol += 'USDT';
         blackList.delete(symbol);
         const res = await getSymbolData(symbol);
-        if(res) {
-            rawResults = [res, ...rawResults.filter(r => r.s !== symbol)];
-            renderTable();
-            document.getElementById('search-input').value = "";
-        } else {
-            alert("幣安找不到 " + symbol);
-        }
+        if(res) { rawResults = [res, ...rawResults.filter(r => r.s !== symbol)]; renderTable(); document.getElementById('search-input').value = ""; }
+        else { alert("幣安找不到 " + symbol); }
     }
 
-    function getLight(score) {
-        if (score >= 25) return 'light-green';
-        if (score >= 12.5) return 'light-yellow';
-        return 'light-red';
-    }
+    function getLight(score) { return score >= 25 ? 'light-green' : (score >= 12.5 ? 'light-yellow' : 'light-red'); }
 
     async function getSymbolData(s) {
         try {
@@ -141,19 +109,26 @@
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7, ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3])), avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
 
+            // 算分邏輯
             const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
             const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
             const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5);
             const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
-            const totalScore = Math.round(s1 + s2 + s3 + s4);
+            
+            let totalScore = Math.round(s1 + s2 + s3 + s4);
+            
+            // 【核心修正：防墜毀鎖定】
+            // 如果價格低於MA25，說明是空頭噴出，技術分直接扣至0，不予顯示
+            if (now < ma25) totalScore = 0;
 
             const totalVol1m = parseFloat(mK[59][5]), takerVol1m = parseFloat(mK[59][9]), avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / 60;
             const vRatio = totalVol1m / avgVol1m, buyRatio = (takerVol1m / totalVol1m) * 100;
 
             let thrustLv = 1;
-            if (vRatio > 1.2) {
+            // 【衝刺等級修正：確保向上才加分】
+            if (vRatio > 1.2 && now >= parseFloat(mK[58][4])) {
                 let base = vRatio * 1.8;
-                if (buyRatio > 65) base += 3; else if (buyRatio < 50) base -= 2;
+                if (buyRatio > 65) base += 3;
                 thrustLv = Math.max(2, Math.min(10, Math.round(base)));
             }
 
