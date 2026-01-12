@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V157 | 雙重波動率版</title>
+    <title>HUNTER V158 | 評分全顯版</title>
     <style>
         body { background: #0b0e11; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #181a20; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #333; }
@@ -15,9 +15,10 @@
         .lv-high { color: #f6465d; font-weight: bold; animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0.4; } }
         .score-box { background: #2b3139; color: #f0b90b; padding: 5px 12px; border-radius: 4px; font-weight: bold; font-size: 16px; border: 1px solid #444; }
+        .score-detail { font-size: 10px; color: #848e9c; margin-top: 4px; display: flex; gap: 3px; justify-content: center; }
+        .high-impact { color: #f0b90b; font-weight: bold; }
         .btn { border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        #btn-toggle { background: #f0b90b; color: #000; }
-        .tp-group { font-size: 11px; text-align: left; display: inline-block; }
+        .tp-group { font-size: 11px; text-align: left; display: inline-block; margin-top: 4px;}
         .tp-1d { color: #00c087; }
         .tp-5d { color: #f0b90b; }
     </style>
@@ -25,13 +26,13 @@
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 24px; font-weight: bold; color: #f0b90b;">🎯 V157 獵人雷達</span>
-            <span style="font-size: 12px; color: #848e9c; margin-left: 10px;">(1D/5D 雙波動率版)</span>
+            <span style="font-size: 24px; font-weight: bold; color: #f0b90b;">🎯 V158 獵人雷達</span>
+            <span style="font-size: 12px; color: #848e9c; margin-left: 10px;">(算分細節全顯版)</span>
         </div>
         <div class="controls">
             <input type="text" id="searchInput" placeholder="搜尋幣種..." oninput="renderTable()">
             <button id="btn-sound" class="btn" style="background:#2b3139; color:#fff;" onclick="toggleSound()">🔊 聲音: 開</button>
-            <button id="btn-toggle" class="btn" onclick="toggleMonitor()">📡 啟動掃描</button>
+            <button id="btn-toggle" class="btn" style="background:#f0b90b; color:#000;" onclick="toggleMonitor()">📡 啟動掃描</button>
         </div>
     </div>
 
@@ -41,7 +42,7 @@
                 <th>類型</th>
                 <th>幣種與雙 TP (2.8x)</th>
                 <th>🚀 加速等級 (1m)</th>
-                <th>技術總分 (1h)</th>
+                <th>技術總分 (波|糾|量|勢)</th>
                 <th>資費 (±0.05優先)</th>
                 <th>24H 漲跌</th>
             </tr>
@@ -74,25 +75,19 @@
             
             const now = parseFloat(hK[hK.length-1][4]);
             const hRanges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
-            
-            // --- 確切算法：1D (24h) 與 5D (120h) ATR ---
             const atr1d = hRanges.slice(-25, -1).reduce((a,b)=>a+b,0) / 24;
             const atr5d = hRanges.slice(-121, -1).reduce((a,b)=>a+b,0) / 120;
-            
-            const tp1d = ((atr1d * 2.8) / now * 100).toFixed(1);
-            const tp5d = ((atr5d * 2.8) / now * 100).toFixed(1);
-            const sl = ((atr1d * 2.2) / now * 100).toFixed(1);
 
-            // --- 總分邏輯 (100分) ---
+            // 算分細節
             const hCloses = hK.map(k=>parseFloat(k[4]));
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7;
             const ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
-            const s1 = Math.min(25, (hRanges[hRanges.length-1]/atr1d/1.8)*25);
-            const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
-            const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5);
-            const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
+            
+            const s1 = Math.min(25, (hRanges[hRanges.length-1]/atr1d/1.8)*25); // 波
+            const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0; // 糾
+            const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5); // 量
+            const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0; // 勢
 
-            // --- 加速等級 ---
             const curVol = parseFloat(mK[mK.length-1][5]);
             const avgVol = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / mK.length;
             const vRatio = curVol / avgVol;
@@ -103,7 +98,9 @@
             const isTangling = (funding >= -0.05 && funding <= 0.05);
             if (isMonitoring && thrustLv >= 8 && isTangling) playBeep();
 
-            return { s, totalScore: Math.round(s1+s2+s3+s4), thrustLv, vRatio: vRatio.toFixed(1), tp1d, tp5d, sl, funding, change: tData.priceChangePercent, isTangling };
+            return { s, s1, s2, s3, s4, totalScore: Math.round(s1+s2+s3+s4), thrustLv, vRatio: vRatio.toFixed(1), 
+                     tp1d: ((atr1d*2.8)/now*100).toFixed(1), tp5d: ((atr5d*2.8)/now*100).toFixed(1), 
+                     sl: ((atr1d*2.2)/now*100).toFixed(1), funding, change: tData.priceChangePercent, isTangling };
         } catch(e) { return null; }
     }
 
@@ -124,13 +121,21 @@
             <tr class="${r.isTangling ? 'row-tangling' : ''}">
                 <td style="color:${r.isTangling ? '#00c087' : '#848e9c'}">${r.isTangling ? '💎 糾結' : '📊 趨勢'}</td>
                 <td>
-                    <div style="font-weight:bold; font-size:15px;">${r.s.replace('USDT','')}</div>
+                    <div style="font-weight:bold; font-size:15px; color:#fff;">${r.s.replace('USDT','')}</div>
                     <div class="tp-group">
                         <span class="tp-1d">1D:🎯${r.tp1d}%</span> | <span class="tp-5d">5D:🎯${r.tp5d}%</span> | <span style="color:#f6465d">SL:-${r.sl}%</span>
                     </div>
                 </td>
                 <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}">LV ${r.thrustLv} (${r.vRatio}x)</td>
-                <td><span class="score-box">${r.totalScore}</span></td>
+                <td>
+                    <span class="score-box">${r.totalScore}</span>
+                    <div class="score-detail">
+                        <span class="${r.s1>=20?'high-impact':''}">波:${Math.round(r.s1)}</span>
+                        <span class="${r.s2>=20?'high-impact':''}">糾:${Math.round(r.s2)}</span>
+                        <span class="${r.s3>=20?'high-impact':''}">量:${Math.round(r.s3)}</span>
+                        <span class="${r.s4>=20?'high-impact':''}">勢:${Math.round(r.s4)}</span>
+                    </div>
+                </td>
                 <td style="color:${r.isTangling ? '#00c087' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
                 <td style="color:${parseFloat(r.change)>=0?'#00c087':'#f6465d'}">${r.change}%</td>
             </tr>
