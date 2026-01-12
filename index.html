@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V153 獵人鎖定版</title>
+    <title>HUNTER PRO | V155 幣安合約專用版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
@@ -23,7 +23,7 @@
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 HUNTER PRO 技術雷達 (V153)</span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 HUNTER PRO 技術雷達 (V155)</span>
             <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
         <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動掃描</button>
@@ -55,7 +55,8 @@
     let isMonitoring = false;
     let timer = null;
     let userBlacklist = new Set();
-    const EXCLUDE_LIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'USDCUSDT', 'FDUSDUSDT'];
+    // 排除比特幣、乙太幣與穩定幣
+    const EXCLUDE_LIST = ['BTCUSDT', 'ETHUSDT', 'USDCUSDT', 'FDUSDUSDT', 'BUSDUSDT', 'DAIUSDT'];
 
     function toggleMonitor() {
         isMonitoring = !isMonitoring;
@@ -78,14 +79,11 @@
             const open = parseFloat(hK[24][1]), now = parseFloat(hK[24][4]);
             const hCloses = hK.map(k=>parseFloat(k[4])), ma7 = getMA(hCloses, 7), ma25 = getMA(hCloses, 25);
             const funding = parseFloat(fRes.lastFundingRate * 100);
-
-            // 停利計算
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
             const avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
             const atrPercent = (avgR / now) * 100;
             const suggestedTP = (atrPercent * 2.8).toFixed(1); 
 
-            // 分數拆解
             const vRatio = (parseFloat(hK[24][2]) - parseFloat(hK[24][3])) / avgR;
             const vScore = Math.min(25, (vRatio / 1.8) * 25); 
             const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
@@ -114,7 +112,7 @@
         const box = document.getElementById('diag-box');
         box.style.display = 'block'; box.innerHTML = "⏳ 診斷中...";
         const d = await getSymbolData(s);
-        if(!d) { box.innerHTML = "找不到幣種"; return; }
+        if(!d) { box.innerHTML = "找不到該幣種或其非幣安合約標的"; return; }
         box.innerHTML = `
             <div style="font-weight:bold; color:#f2a900;">📊 ${s} 技術診斷 | <span style="color:#00ffcc">建議停利: ${d.suggestedTP}%</span></div>
             <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:12px; margin-top:5px; background: #222; padding: 10px; border-radius: 5px;">
@@ -129,11 +127,22 @@
 
     async function startScan() {
         try {
+            // 核心修正：直接請求幣安合約市場的所有合約資訊，確保只抓可交易合約
+            const infoRes = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+            const infoData = await infoRes.json();
+            const perpetualSymbols = infoData.symbols
+                .filter(s => s.contractType === 'PERPETUAL' && s.status === 'TRADING' && s.quoteAsset === 'USDT')
+                .map(s => s.symbol);
+
             const tRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
             const tData = await tRes.json();
+            
             let baseSymbols = tData.filter(d => 
-                d.symbol.endsWith('USDT') && !EXCLUDE_LIST.includes(d.symbol) && 
-                !userBlacklist.has(d.symbol) && parseFloat(d.quoteVolume) > 20000000 && parseFloat(d.priceChangePercent) > 0
+                perpetualSymbols.includes(d.symbol) && 
+                !EXCLUDE_LIST.includes(d.symbol) && 
+                !userBlacklist.has(d.symbol) && 
+                parseFloat(d.quoteVolume) > 20000000 && 
+                parseFloat(d.priceChangePercent) > 0
             ).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 40);
 
             let results = [];
@@ -160,7 +169,7 @@
                 </tr>
             `).join('');
             document.getElementById('update-time').innerText = "最後刷新: " + new Date().toLocaleTimeString();
-        } catch (e) {}
+        } catch (e) { console.error(e); }
     }
 
     function deleteSymbol(s) { userBlacklist.add(s + "USDT"); startScan(); }
