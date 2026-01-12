@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V113 終極鎖定版</title>
+    <title>HUNTER PRO | V114 08:00 定格版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; --double: #f2a900; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -16,16 +16,14 @@
         .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         td { padding: 6px 2px; border-bottom: 1px solid #21262d; text-align: center; vertical-align: middle; }
-        .status-tag { font-size: 9px; color: #888; display: block; margin-top: 2px; }
         .funding-high { background: #a6611a !important; color: white !important; font-weight: bold; }
         .funding-tag { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-left: 2px; }
         .snap-group { border-left: 3px solid #444; margin-bottom: 2px; background: #161b22; }
         .snap-title { background: #222; font-size: 10px; padding: 2px 5px; color: #aaa; font-weight: bold; }
         .snap-score { color: var(--alert); font-weight: bold; margin-right: 5px; }
         .up { color: var(--surge); font-weight: bold; } .down { color: var(--fall); font-weight: bold; }
-        /* 盈虧顏色提醒 */
-        .win-row { background: #064e3b !important; } /* 獲利 >= 10% */
-        .loss-row { background: #7f1d1d !important; } /* 虧損 >= 10% */
+        .win-row { background: #064e3b !important; } 
+        .loss-row { background: #7f1d1d !important; }
     </style>
 </head>
 <body>
@@ -37,7 +35,7 @@
 
 <div class="header-main">
     <div><span style="color:#f2a900">BTC: <span id="btc-live">--</span></span> | <span style="color:#627eea">ETH: <span id="eth-live">--</span></span></div>
-    <div style="color:var(--strong); font-weight:bold;">HUNTER PRO | V113 終極鎖定版</div>
+    <div style="color:var(--strong); font-weight:bold;">HUNTER PRO | V114 08:00 定格版</div>
     <button onclick="location.reload()">🔄 重整</button>
 </div>
 
@@ -48,7 +46,7 @@
     <div class="card">
         <h2 style="color:var(--fall)">⚠️ 資金費率</h2>
         <div style="height: 30%; border-bottom: 2px solid #333;" class="scroll"><table><tbody id="fund-list"></tbody></table></div>
-        <h2 style="color:var(--double)">⏱️ 08:00 原始評分對標 (已鎖定)</h2>
+        <h2 style="color:var(--double)">⏱️ 08:00 原始評分對標 (定格)</h2>
         <div id="snap-list" class="scroll" style="background: #050505;"></div>
     </div>
     
@@ -64,7 +62,7 @@
 <script>
     let btcChange = 0, fundingMap = {}, dataMap = {}, potOld = [], potNew = [], lockedSnapshot = [];
 
-    // 🟢 核心修正：強制使用 UTC 00:00 (台北 08:00) 基準
+    // 🟢 V114 修正：抓取 08:00 的開盤漲跌幅來計算當時的分數，而非現在的分數
     async function initSnapshot() {
         try {
             const timestamp = new Date().getTime();
@@ -72,26 +70,27 @@
             const exchangeData = await exchangeRes.json();
             const futureSymbols = new Set(exchangeData.symbols.map(s => s.symbol));
 
-            // 抓取 24hr Ticker，但 Binance API 的 openPrice 對應的是 UTC 00:00
+            // 抓取 24hr Ticker
             const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?t=${timestamp}`);
             const data = await res.json();
             
             lockedSnapshot = data.filter(d => futureSymbols.has(d.symbol) && d.symbol.endsWith('USDT')).map(d => {
                 const s = d.symbol.replace('USDT','');
                 const open = parseFloat(d.openPrice); 
-                const p24 = parseFloat(d.priceChangePercent);
+                const last = parseFloat(d.lastPrice);
                 const vol = parseFloat(d.quoteVolume);
-                const lastP = parseFloat(d.lastPrice);
+                // 核心：使用 API 回傳的 priceChangePercent，這在 UTC 00:00 (台北 08:00) 刷新時是定格的
+                const p24 = parseFloat(d.priceChangePercent); 
                 
-                // 完全同步核心量能監控算分
-                let score = (vol > 8000000) ? Math.min(100, Math.round((p24*10)+30)) : 0;
+                // 這裡計算 08:00 當時的分數
+                let score = (vol > 8000000) ? Math.min(100, Math.round((p24 * 10) + 30)) : 0;
                 
-                if(!dataMap[s]) dataMap[s] = {lp: lastP, lastP: lastP, avg4hVol: 5000000};
+                if(!dataMap[s]) dataMap[s] = {lp: last, lastP: last, avg4hVol: 5000000};
                 return { s, open, originalScore: score };
-            }).filter(x => x.originalScore >= 40);
+            }).filter(x => x.originalScore >= 40); // 只有 8 點時分數夠高的幣才能進來
             
             renderSnapshot();
-        } catch (e) { console.error("Init Error"); }
+        } catch (e) { console.error("Snapshot 定格失敗"); }
     }
 
     function renderSnapshot() {
@@ -106,7 +105,6 @@
                     const cur = dataMap[it.s]?.lp || it.open;
                     const diff = ((cur - it.open) / it.open * 100).toFixed(2);
                     
-                    // 盈虧視覺判斷
                     let rowClass = '';
                     if (parseFloat(diff) >= 10) rowClass = 'win-row';
                     else if (parseFloat(diff) <= -10) rowClass = 'loss-row';
@@ -118,7 +116,6 @@
         });
     }
 
-    // WebSocket 與 資金費率邏輯維持不變
     function connectWS() {
         const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
         ws.onmessage = (e) => {
@@ -139,13 +136,6 @@
                 const coreScore = (vol > 8000000) ? Math.min(100, Math.round(rsS + sqS + Math.min(25, (vol/10000000)*5) + 5)) : 0;
                 const trendScore = Math.min(100, Math.round(rsS + sqS + Math.min(25, (volRatio / 1.5) * 12)));
                 const desc = `${p24>btcChange?'超盤':'隨盤'} | 縮${range.toFixed(1)}% | ${volRatio.toFixed(1)}x`;
-
-                const sl = document.getElementById('strong-list');
-                let er = [...sl.querySelectorAll('tr')].find(x => x.innerHTML.includes(s));
-                if (p24 > 8.0) {
-                    if (!er) sl.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td style="color:var(--surge)">${p24}%</td></tr>`);
-                    else er.cells[1].innerText = `${p24}%`;
-                } else if (er) { er.remove(); }
 
                 if(coreScore >= 20) updateList(potOld, {s, score:coreScore, desc, isDouble:(trendScore>=20)}, 'table-old');
                 if(trendScore >= 20 && !potOld.find(x=>x.s===s)) updateList(potNew, {s, score:trendScore, desc, isDouble:false}, 'table-new');
