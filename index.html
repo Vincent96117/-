@@ -2,32 +2,25 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V134 糾結突破監控</title>
+    <title>HUNTER PRO | V139 糾結起爆監控</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
-        .status-tag { padding: 5px 12px; border-radius: 4px; font-weight: bold; background: #333; }
-        .on { background: #00ffcc; color: #000; }
-        
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 12px; text-align: center; }
         th { background: #252525; color: #f2a900; position: sticky; top: 0; }
-
-        /* 糾結幣特別樣式 */
         .row-tangling { background: rgba(255, 68, 68, 0.2) !important; border: 2px solid #ff4444 !important; }
         .tangling-tag { background: #ff4444; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; }
-
         .score-box { background: #444; color: #fff; padding: 4px 10px; border-radius: 3px; font-weight: bold; font-size: 15px; }
-        .score-high { background: linear-gradient(45deg, #f2a900, #ffcc00); color: #000; box-shadow: 0 0 10px #f2a900; }
-        
+        .score-100 { background: linear-gradient(45deg, #f2a900, #ff5500); color: #fff; box-shadow: 0 0 15px #ff5500; }
         .btn { background: #f2a900; color: #000; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .btn:hover { transform: scale(1.05); }
+        .info-text { font-size: 11px; color: #aaa; }
     </style>
 </head>
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V134 糾結突破監控</span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V139 糾結突破監控 (雙週期版)</span>
             <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
         <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動自動監控</button>
@@ -38,15 +31,13 @@
             <tr>
                 <th>類型</th>
                 <th>幣種</th>
-                <th>評分 (依此排序)</th>
-                <th>資費 (±0.05 標記)</th>
-                <th>當前價格</th>
+                <th>綜合評分</th>
+                <th>糾結度/量比</th>
+                <th>資費 (±0.05)</th>
                 <th>24H 漲跌</th>
             </tr>
         </thead>
-        <tbody id="list-body">
-            <tr><td colspan="6" style="padding: 50px; color: #666;">點擊按鈕開始掃描全市場數據...</td></tr>
-        </tbody>
+        <tbody id="list-body"></tbody>
     </table>
 
 <script>
@@ -56,83 +47,93 @@
     function toggleMonitor() {
         isMonitoring = !isMonitoring;
         const btn = document.getElementById('btn-toggle');
-        if(isMonitoring) {
-            btn.innerText = "🛑 停止監控";
-            btn.style.background = "#ff4444";
-            btn.style.color = "#fff";
-            startScan();
-            timer = setInterval(startScan, 5000); // 每 5 秒刷新一次
-        } else {
-            btn.innerText = "📡 啟動自動監控";
-            btn.style.background = "#f2a900";
-            btn.style.color = "#000";
-            clearInterval(timer);
-        }
+        btn.innerText = isMonitoring ? "🛑 停止監控" : "📡 啟動自動監控";
+        btn.style.background = isMonitoring ? "#ff4444" : "#f2a900";
+        if(isMonitoring) { startScan(); timer = setInterval(startScan, 8000); }
+        else { clearInterval(timer); }
     }
+
+    const getMA = (arr, p) => arr.length < p ? 0 : arr.slice(-p).reduce((a, b) => a + b, 0) / p;
 
     async function startScan() {
         const body = document.getElementById('list-body');
         document.getElementById('update-time').innerText = "最後更新: " + new Date().toLocaleTimeString();
         
         try {
-            // 1. 抓取 Ticker 和 Funding Rate
             const [tRes, fRes] = await Promise.all([
                 fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
                 fetch('https://fapi.binance.com/fapi/v1/premiumIndex')
             ]);
             const tData = await tRes.json();
             const fData = await fRes.json();
-
-            // 整理資費對照表
             const fundingMap = {};
             fData.forEach(f => { fundingMap[f.symbol] = parseFloat(f.lastFundingRate * 100).toFixed(4); });
 
+            // 取成交量前 40 名，確保分析質量
+            let topSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 10000000).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 40);
             let results = [];
 
-            // 2. 計算評分
-            tData.filter(d => d.symbol.endsWith('USDT')).forEach(d => {
+            for (let d of topSymbols) {
                 const s = d.symbol;
-                const high = parseFloat(d.highPrice), low = parseFloat(d.lowPrice), vol = parseFloat(d.quoteVolume);
-                const funding = parseFloat(fundingMap[s] || 0);
-                
-                let range = ((high - low) / low) * 100;
-                let score = (vol > 8000000) ? Math.min(100, Math.round(range * 8 + 35)) : 0;
+                const [dK, hK] = await Promise.all([
+                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1d&limit=30`).then(r=>r.json()),
+                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=4h&limit=30`).then(r=>r.json())
+                ]);
 
-                // 判斷是否為「糾結幣」: 資費在 -0.05 到 +0.05 之間
+                const dCloses = dK.map(k=>parseFloat(k[4]));
+                const hCloses = hK.map(k=>parseFloat(k[4]));
+                const now = dCloses[dCloses.length-1];
+
+                // 1. 小週期(4H)糾結與站上 (40分)
+                const ma7_4h = getMA(hCloses, 7);
+                const ma25_4h = getMA(hCloses, 25);
+                const hDiff = Math.abs(ma7_4h - ma25_4h) / ma25_4h * 100;
+                let hScore = (hDiff < 1.5) ? 25 : (hDiff < 3 ? 15 : 0); 
+                if (now > ma7_4h && now > ma25_4h) hScore += 15; 
+
+                // 2. 大週期(日線)趨勢支撐 (20分)
+                const ma25_d = getMA(dCloses, 25);
+                let dScore = (now > ma25_d) ? 20 : 0;
+
+                // 3. 異常量比 (40分)
+                // 量比 = (24H總量/24) 作為平均，當前量由 ticker 估算
+                let avgVolHourly = parseFloat(d.quoteVolume) / 24;
+                let volRatio = (parseFloat(d.quoteVolume) / 30000000); // 這裡以30M為一個活躍基準
+                let vScore = Math.min(40, volRatio * 12);
+
+                let finalScore = Math.round(hScore + dScore + vScore);
+                const funding = parseFloat(fundingMap[s] || 0);
                 const isTangling = (funding >= -0.05 && funding <= 0.05);
 
-                if (score >= 45) {
+                if (finalScore >= 40) {
                     results.push({
                         symbol: s.replace('USDT',''),
-                        score: score,
+                        score: Math.min(100, finalScore),
                         funding: funding,
                         isTangling: isTangling,
-                        price: parseFloat(d.lastPrice),
+                        info: `糾:${hDiff.toFixed(1)}%|量:${volRatio.toFixed(1)}x`,
                         change: d.priceChangePercent
                     });
                 }
-            });
+            }
 
-            // 3. 排序邏輯：糾結幣置頂 > 分數高到低
             results.sort((a, b) => {
                 if (a.isTangling && !b.isTangling) return -1;
                 if (!a.isTangling && b.isTangling) return 1;
                 return b.score - a.score;
             });
 
-            // 4. 渲染表格
             body.innerHTML = results.map(r => `
                 <tr class="${r.isTangling ? 'row-tangling' : ''}">
-                    <td>${r.isTangling ? '<span class="tangling-tag">糾結突破</span>' : '普通強勢'}</td>
-                    <td style="font-weight:bold; font-size:16px;">${r.symbol}</td>
-                    <td><span class="score-box ${r.score >= 80 ? 'score-high' : ''}">${r.score}</span></td>
-                    <td style="color: ${r.isTangling ? '#ff4444' : '#eee'}; font-weight: bold;">${r.funding}%</td>
-                    <td>${r.price}</td>
-                    <td style="color: ${parseFloat(r.change) >= 0 ? '#00ffcc' : '#ff6666'}">${r.change}%</td>
+                    <td>${r.isTangling ? '<span class="tangling-tag">糾結突破</span>' : '趨勢掃描'}</td>
+                    <td style="font-weight:bold; font-size:15px;">${r.symbol}</td>
+                    <td><span class="score-box ${r.score >= 90 ? 'score-100' : ''}">${r.score}</span></td>
+                    <td class="info-text">${r.info}</td>
+                    <td style="font-weight:bold; color:${r.isTangling?'#ff4444':'#eee'}">${r.funding}%</td>
+                    <td style="color:${parseFloat(r.change)>=0 ? '#00ffcc':'#ff6666'}">${r.change}%</td>
                 </tr>
             `).join('');
-
-        } catch (e) { console.error("數據抓取失敗", e); }
+        } catch (e) { console.error(e); }
     }
 </script>
 </body>
