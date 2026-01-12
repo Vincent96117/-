@@ -2,20 +2,20 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V162 | 大幣儀表板版</title>
+    <title>HUNTER V163 | 主流幣過濾版</title>
     <style>
-        body { background: #0b0e11; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; background: #181a20; padding: 15px 25px; border-bottom: 1px solid #333; }
+        body { background: #0b0e11; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 0 20px 20px 20px; margin: 0; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #181a20; padding: 15px 20px; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 100; }
         
-        /* 大幣儀表板 */
-        .market-watch { display: flex; gap: 20px; background: #1e2329; padding: 10px 25px; border-bottom: 1px solid #333; justify-content: flex-start; }
-        .watch-item { display: flex; align-items: center; gap: 8px; font-family: monospace; }
-        .watch-label { color: #848e9c; font-size: 12px; }
-        .watch-price { color: #fff; font-weight: bold; font-size: 14px; }
-        .watch-change { font-size: 12px; }
+        /* 大幣儀表板 - 變窄以容納更多 */
+        .market-watch { display: flex; gap: 15px; background: #1e2329; padding: 8px 20px; border-bottom: 1px solid #333; flex-wrap: wrap; }
+        .watch-item { display: flex; align-items: center; gap: 6px; font-family: 'Roboto Mono', monospace; border-right: 1px solid #333; padding-right: 15px; }
+        .watch-label { color: #f0b90b; font-size: 12px; font-weight: bold; }
+        .watch-price { color: #fff; font-size: 13px; }
+        .watch-change { font-size: 11px; }
 
         .controls { display: flex; gap: 10px; align-items: center; }
-        input { background: #2b2f36; border: 2px solid #444; color: #fff; padding: 8px 15px; border-radius: 5px; width: 220px; font-weight: bold; }
+        input { background: #2b2f36; border: 2px solid #444; color: #fff; padding: 8px 15px; border-radius: 5px; width: 220px; }
         input:focus { border-color: #f0b90b; outline: none; }
         
         table { width: 100%; border-collapse: collapse; background: #181a20; margin-top: 10px; }
@@ -37,19 +37,16 @@
 </head>
 <body>
     <div class="header">
-        <div>
-            <span style="font-size: 26px; font-weight: bold; color: #f0b90b;">🎯 V162 獵人雷達</span>
-        </div>
+        <div><span style="font-size: 24px; font-weight: bold; color: #f0b90b;">🎯 V163 獵人雷達</span></div>
         <div class="controls">
-            <input type="text" id="searchInput" placeholder="搜尋幣種 (如: PEPE)..." oninput="startScan()">
+            <input type="text" id="searchInput" placeholder="狙擊幣種 (如: PEPE)..." oninput="startScan()">
             <button id="btn-sound" class="btn" style="background:#2b3139; color:#fff;" onclick="toggleSound()">🔊 聲音: 開</button>
             <button id="btn-toggle" class="btn" style="background:#f0b90b; color:#000;" onclick="toggleMonitor()">📡 啟動掃描</button>
         </div>
     </div>
 
     <div class="market-watch" id="market-watch">
-        <div class="watch-item">載入大幣數據中...</div>
-    </div>
+        </div>
 
     <table>
         <thead>
@@ -68,7 +65,14 @@
 
 <script>
     let isMonitoring = false, isSoundOn = true, allData = [], timer = null, blackList = new Set();
-    const bigCoins = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+    
+    // 定義「大幣/主流幣」黑名單，這些幣不進下方列表
+    const mainStreamCoins = [
+        'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'ADAUSDT', 
+        'XRPUSDT', 'DOGEUSDT', 'TRXUSDT', 'DOTUSDT', 'LINKUSDT', 
+        'AVAXUSDT', 'MATICUSDT', 'LTCUSDT', 'BCHUSDT', 'SHIBUSDT'
+    ];
+
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function toggleSound() { isSoundOn = !isSoundOn; document.getElementById('btn-sound').innerText = isSoundOn ? "🔊 聲音: 開" : "🔇 聲音: 關"; }
@@ -83,15 +87,17 @@
     
     function removeSymbol(s) { blackList.add(s); renderTable(); }
 
-    async function updateBigCoins() {
+    async function updateMarketWatch() {
         try {
-            const results = await Promise.all(bigCoins.map(s => fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json())));
+            // 只抓前 6 名大幣放儀表板
+            const watchList = mainStreamCoins.slice(0, 6);
+            const results = await Promise.all(watchList.map(s => fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json())));
             document.getElementById('market-watch').innerHTML = results.map(r => `
                 <div class="watch-item">
                     <span class="watch-label">${r.symbol.replace('USDT','')}</span>
                     <span class="watch-price">${parseFloat(r.lastPrice).toLocaleString()}</span>
                     <span class="watch-change ${parseFloat(r.priceChangePercent) >= 0 ? 'up' : 'down'}">
-                        ${parseFloat(r.priceChangePercent) >= 0 ? '▲' : '▼'}${r.priceChangePercent}%
+                        ${r.priceChangePercent}%
                     </span>
                 </div>
             `).join('');
@@ -112,7 +118,6 @@
             const now = parseFloat(hK[hK.length-1][4]);
             const hRanges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
             const atr1d = hRanges.slice(-25, -1).reduce((a,b)=>a+b,0) / 24;
-            const atr5d = hRanges.slice(-121, -1).reduce((a,b)=>a+b,0) / 120;
             const hCloses = hK.map(k=>parseFloat(k[4]));
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7;
             const ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
@@ -132,22 +137,22 @@
             if (isMonitoring && thrustLv >= 8 && isTangling) playBeep();
 
             return { s: sym, s1, s2, s3, s4, totalScore: Math.round(s1+s2+s3+s4), thrustLv, vRatio: vRatio.toFixed(1), 
-                     tp1d: ((atr1d*2.8)/now*100).toFixed(1), tp5d: ((atr5d*2.8)/now*100).toFixed(1), 
+                     tp1d: ((atr1d*2.8)/now*100).toFixed(1), tp5d: (((hRanges.slice(-121, -1).reduce((a,b)=>a+b,0)/120)*2.8)/now*100).toFixed(1), 
                      sl: ((atr1d*2.2)/now*100).toFixed(1), funding, change: tData.priceChangePercent, isTangling };
         } catch(e) { return null; }
     }
 
     async function startScan() {
-        updateBigCoins(); // 更新儀表板
+        updateMarketWatch();
         const query = document.getElementById('searchInput').value.trim().toUpperCase();
         const tRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
         const tData = await tRes.json();
         
-        // 過濾掉大幣的基礎清單
+        // 核心邏輯：過濾主流幣與成交量過低的幣
         let symbols = tData.filter(d => d.symbol.endsWith('USDT') && 
                                         parseFloat(d.quoteVolume) > 30000000 && 
-                                        !bigCoins.includes(d.symbol)) // <--- 關鍵過濾
-                           .sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 40).map(d => d.symbol);
+                                        !mainStreamCoins.includes(d.symbol)) // 自動過濾主流幣
+                           .sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 45).map(d => d.symbol);
 
         if (query) {
             const searchSym = query.endsWith('USDT') ? query : query + 'USDT';
@@ -198,8 +203,7 @@
         `).join('');
     }
     
-    // 初始化呼叫一次大幣數據
-    updateBigCoins();
+    updateMarketWatch();
 </script>
 </body>
 </html>
