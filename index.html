@@ -2,18 +2,17 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V147 搜尋診斷版</title>
+    <title>HUNTER PRO | V149 純粹指標版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
-        .control-panel { background: #252525; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .search-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+        .control-panel { background: #252525; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #444; }
         input { background: #333; border: 1px solid #555; color: #fff; padding: 8px; border-radius: 4px; outline: none; width: 150px; }
-        #diag-box { background: #1a1a1a; border: 1px dashed #f2a900; padding: 15px; border-radius: 5px; display: none; line-height: 1.6; }
-        .diag-item { margin-bottom: 5px; }
+        #diag-box { background: #1a1a1a; border: 1px dashed #f2a900; padding: 15px; border-radius: 5px; display: none; margin-top: 10px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 12px; text-align: center; }
         th { background: #252525; color: #f2a900; }
+        .row-tangling { background: rgba(0, 255, 204, 0.1) !important; border-left: 4px solid #00ffcc; }
         .score-box { background: #444; color: #fff; padding: 4px 10px; border-radius: 3px; font-weight: bold; font-size: 15px; }
         .score-100 { background: linear-gradient(45deg, #f2a900, #ff5500); box-shadow: 0 0 10px #ff5500; }
         .btn { background: #f2a900; color: #000; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
@@ -23,18 +22,15 @@
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V147 獵人雷達 (診斷模式)</span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V149 獵人雷達 (純技術指標版)</span>
             <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
-        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動自動監控</button>
+        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動監控</button>
     </div>
 
     <div class="control-panel">
-        <div class="search-row">
-            <input type="text" id="search-input" placeholder="搜尋幣種 (如: SOL)">
-            <button class="btn" onclick="diagnoseSymbol()">🔍 個別診斷</button>
-            <button class="btn" style="background:#555; color:#fff" onclick="clearBlacklist()">重設名單</button>
-        </div>
+        <input type="text" id="search-input" placeholder="搜尋幣種 (如: SOL)">
+        <button class="btn" onclick="diagnoseSymbol()">🔍 診斷技術面</button>
         <div id="diag-box"></div>
     </div>
 
@@ -43,9 +39,9 @@
             <tr>
                 <th>類型</th>
                 <th>幣種</th>
-                <th>綜合評分</th>
-                <th>數據 (波/量/距高)</th>
+                <th>綜合技術分</th>
                 <th>資費 (±0.05)</th>
+                <th>數據 (波/量/距高)</th>
                 <th>24H 漲跌</th>
                 <th>管理</th>
             </tr>
@@ -69,138 +65,103 @@
 
     const getMA = (arr, p) => arr.length < p ? 0 : arr.slice(-p).reduce((a, b) => a + b, 0) / p;
 
-    // 個別診斷功能
-    async function diagnoseSymbol() {
-        let s = document.getElementById('search-input').value.trim().toUpperCase();
-        if(!s) return;
-        if(!s.endsWith('USDT')) s += 'USDT';
+    async function getSymbolData(s) {
+        const [tData, fRes, hK] = await Promise.all([
+            fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json()),
+            fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${s}`).then(r=>r.json()),
+            fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json())
+        ]);
         
-        const box = document.getElementById('diag-box');
-        box.style.display = 'block';
-        box.innerHTML = "⏳ 正在獲取深度數據...";
+        const open = parseFloat(hK[24][1]), high = parseFloat(hK[24][2]), low = parseFloat(hK[24][3]), now = parseFloat(hK[24][4]);
+        const hCloses = hK.map(k=>parseFloat(k[4])), ma7 = getMA(hCloses, 7), ma25 = getMA(hCloses, 25);
+        const funding = parseFloat(fRes.lastFundingRate * 100);
 
-        try {
-            const [tData, fRes] = await Promise.all([
-                fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json()),
-                fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${s}`).then(r=>r.json())
-            ]);
-            const hK = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json());
-            
-            const open = parseFloat(hK[24][1]);
-            const high = parseFloat(hK[24][2]);
-            const low = parseFloat(hK[24][3]);
-            const now = parseFloat(hK[24][4]);
-            const hCloses = hK.map(k=>parseFloat(k[4]));
-            const ma7 = getMA(hCloses, 7);
-            const ma25 = getMA(hCloses, 25);
-            const funding = (parseFloat(fRes.lastFundingRate) * 100).toFixed(4);
+        // 1. 波動分 (25分)
+        const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
+        const avgR = ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24;
+        const vRatio = (high - low) / (avgR || 0.001);
+        const vScore = Math.min(25, (vRatio / 1.8) * 25);
 
-            // 計算細項
-            const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
-            const avgR = ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24;
-            const vRatio = (high - low) / (avgR || 0.0001);
-            let vScore = Math.min(25, (vRatio / 1.8) * 25);
+        // 2. 糾結分 (25分)
+        const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
+        const tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0;
 
-            const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
-            let tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0;
+        // 3. 量能分 (25分)
+        const qScore = Math.min(25, (parseFloat(tData.quoteVolume) / 40000000) * 12.5);
 
-            const qRatio = (parseFloat(tData.quoteVolume) / 30000000);
-            let qScore = Math.min(25, qRatio * 10);
+        // 4. 突破分 (25分)
+        const recentH = Math.max(...hK.slice(-4).map(k=>parseFloat(k[2])));
+        const distToH = Math.abs(now - recentH) / recentH * 100;
+        const hScore = (distToH <= 2) ? 25 : 0;
 
-            const recentH = Math.max(...hK.slice(-4).map(k=>parseFloat(k[2])));
-            const distToH = Math.abs(now - recentH) / recentH * 100;
-            let hScore = (distToH <= 2) ? 25 : 0;
+        const totalScore = Math.round(vScore + tangleScore + qScore + hScore);
+        const isBull = (now >= open && now > ma7 && ma7 > ma25);
+        const isTangling = (funding >= -0.05 && funding <= 0.05);
 
-            const isUp = (now >= open && now > ma7 && ma7 > ma25);
-            let finalScore = Math.round(vScore + tangleScore + qScore + hScore);
-
-            box.innerHTML = `
-                <div style="font-size:16px; color:#f2a900; font-weight:bold; margin-bottom:10px;">📊 ${s} 診斷報告</div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <div>
-                        <div class="diag-item">综合總分：<span class="score-box ${finalScore>=80?'score-100':''}">${finalScore}</span></div>
-                        <div class="diag-item">趨勢狀態：${isUp ? '✅ 多頭排列' : '❌ 結構偏弱'}</div>
-                        <div class="diag-item">資費狀態：${funding}% (糾結度: ${hDiff.toFixed(2)}%)</div>
-                    </div>
-                    <div style="border-left: 1px solid #333; padding-left: 15px;">
-                        <div class="diag-item">1. 波動爆發：${vScore.toFixed(0)} / 25分 (${vRatio.toFixed(1)}倍)</div>
-                        <div class="diag-item">2. 均線糾結：${tangleScore.toFixed(0)} / 25分</div>
-                        <div class="diag-item">3. 資金量能：${qScore.toFixed(0)} / 25分</div>
-                        <div class="diag-item">4. 高點突破：${hScore.toFixed(0)} / 25分 (${distToH.toFixed(1)}%)</div>
-                    </div>
-                </div>
-            `;
-        } catch(e) { box.innerHTML = "❌ 搜尋失敗，請檢查幣種名稱。"; }
+        return { s, totalScore, vScore, tangleScore, qScore, hScore, funding, vRatio, distToH, change: tData.priceChangePercent, isBull, isTangling };
     }
 
-    function deleteSymbol(s) { userBlacklist.add(s + "USDT"); startScan(); }
-    function clearBlacklist() { userBlacklist.clear(); startScan(); }
+    async function diagnoseSymbol() {
+        let s = document.getElementById('search-input').value.trim().toUpperCase();
+        if(!s) return; if(!s.endsWith('USDT')) s += 'USDT';
+        const box = document.getElementById('diag-box');
+        box.style.display = 'block'; box.innerHTML = "⏳ 診斷中...";
+        try {
+            const d = await getSymbolData(s);
+            box.innerHTML = `
+                <div style="font-weight:bold; color:#f2a900;">📊 ${s} 技術面分析 (總分: ${d.totalScore})</div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:12px; margin-top:5px;">
+                    <div>🌪️ 波動：${d.vScore.toFixed(1)} / 25</div>
+                    <div>🧶 糾結：${d.tangleScore.toFixed(1)} / 25</div>
+                    <div>📈 量能：${d.qScore.toFixed(1)} / 25</div>
+                    <div>🎯 突破：${d.hScore} / 25</div>
+                </div>
+                <div style="font-size:11px; color:#aaa; margin-top:5px;">資費提醒: ${d.funding}% ${d.isTangling?'(符合 0.05 糾結)':''}</div>
+            `;
+        } catch(e) { box.innerHTML = "找不到幣種"; }
+    }
 
     async function startScan() {
         try {
-            const [tRes, fRes] = await Promise.all([
-                fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
-                fetch('https://fapi.binance.com/fapi/v1/premiumIndex')
-            ]);
+            const tRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
             const tData = await tRes.json();
-            const fData = await fRes.json();
-            const fundingMap = {};
-            fData.forEach(f => { fundingMap[f.symbol] = parseFloat(f.lastFundingRate * 100).toFixed(4); });
-
             let baseSymbols = tData.filter(d => 
-                d.symbol.endsWith('USDT') && 
-                !EXCLUDE_LIST.includes(d.symbol) && 
-                !userBlacklist.has(d.symbol) &&
-                parseFloat(d.quoteVolume) > 30000000 &&
-                parseFloat(d.priceChangePercent) > 0
-            ).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 35);
+                d.symbol.endsWith('USDT') && !EXCLUDE_LIST.includes(d.symbol) && 
+                !userBlacklist.has(d.symbol) && parseFloat(d.quoteVolume) > 30000000 && parseFloat(d.priceChangePercent) > 0
+            ).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 30);
 
             let results = [];
             for (let d of baseSymbols) {
-                await new Promise(r => setTimeout(r, 30));
-                const hK = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${d.symbol}&interval=1h&limit=25`).then(r=>r.json());
-                const now = parseFloat(hK[24][4]);
-                const open = parseFloat(hK[24][1]);
-                if (now < open) continue;
-
-                const hCloses = hK.map(k=>parseFloat(k[4]));
-                const ma7 = getMA(hCloses, 7);
-                const ma25 = getMA(hCloses, 25);
-                if (now < ma7 || ma7 < ma25) continue;
-
-                const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
-                const vRatio = (parseFloat(hK[24][2]) - parseFloat(hK[24][3])) / (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24 || 0.001);
-                const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
-                const recentH = Math.max(...hK.slice(-4).map(k=>parseFloat(k[2])));
-                const distToH = Math.abs(now - recentH) / recentH * 100;
-
-                let score = Math.round(Math.min(25, (vRatio/1.8)*25) + (hDiff<2.5?(25*(1-hDiff/2.5)):0) + Math.min(25, (parseFloat(d.quoteVolume)/40000000)*10) + (distToH<=2?25:0));
-
-                results.push({
-                    symbol: d.symbol.replace('USDT',''),
-                    score: score,
-                    info: `波:${vRatio.toFixed(1)}x|距高:${distToH.toFixed(1)}%`,
-                    funding: fundingMap[d.symbol] || 0,
-                    isTangling: (fundingMap[d.symbol] >= -0.05 && fundingMap[d.symbol] <= 0.05),
-                    change: d.priceChangePercent
-                });
+                await new Promise(r => setTimeout(r, 40));
+                const res = await getSymbolData(d.symbol);
+                if (res && res.isBull && res.totalScore > 35) {
+                    results.push(res);
+                }
             }
 
-            results.sort((a, b) => (a.isTangling === b.isTangling) ? (b.score - a.score) : (a.isTangling ? -1 : 1));
+            // 排序邏輯：資費糾結(±0.05)置頂 > 按技術總分排
+            results.sort((a, b) => {
+                if (a.isTangling && !b.isTangling) return -1;
+                if (!a.isTangling && b.isTangling) return 1;
+                return b.totalScore - a.totalScore;
+            });
+
             document.getElementById('list-body').innerHTML = results.map(r => `
                 <tr class="${r.isTangling ? 'row-tangling' : ''}">
-                    <td style="font-weight:bold;">${r.isTangling ? '💎 糾結' : '📈 監控'}</td>
-                    <td style="font-weight:bold;">${r.symbol}</td>
-                    <td><span class="score-box ${r.score >= 85 ? 'score-100' : ''}">${r.score}</span></td>
-                    <td style="color:#aaa;">${r.info}</td>
-                    <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding}%</td>
+                    <td style="font-weight:bold; color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.isTangling ? '💎 資費糾結' : '📊 趨勢監控'}</td>
+                    <td style="font-weight:bold;">${r.s.replace('USDT','')}</td>
+                    <td><span class="score-box ${r.totalScore >= 80 ? 'score-100' : ''}">${r.totalScore}</span></td>
+                    <td style="font-weight:bold; color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding}%</td>
+                    <td style="color:#aaa;">波:${r.vRatio.toFixed(1)}x|距高:${r.distToH.toFixed(1)}%</td>
                     <td style="color:#00ffcc">${r.change}%</td>
-                    <td><button class="btn-del" onclick="deleteSymbol('${r.symbol}')">❌</button></td>
+                    <td><button class="btn-del" onclick="deleteSymbol('${r.s.replace('USDT','')}')">❌</button></td>
                 </tr>
             `).join('');
             document.getElementById('update-time').innerText = "最後刷新: " + new Date().toLocaleTimeString();
         } catch (e) {}
     }
+
+    function deleteSymbol(s) { userBlacklist.add(s + "USDT"); startScan(); }
 </script>
 </body>
 </html>
