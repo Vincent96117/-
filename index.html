@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V156 | 穩定修復版</title>
+    <title>HUNTER V157 | 技術拆解版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { background: #111; padding: 20px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
@@ -10,22 +10,20 @@
         .index-item { display: flex; align-items: center; gap: 10px; }
         .index-name { color: #f2a900; font-weight: bold; font-size: 15px; }
         .index-price { font-family: 'Consolas', monospace; font-size: 18px; font-weight: bold; color: #fff; }
-        
         .controls { display: flex; justify-content: space-between; align-items: center; }
         .search-group { display: flex; gap: 15px; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 12px; text-align: center; }
         th { background: #1a1a1a; color: #f2a900; }
         .row-tangling { background: rgba(0, 255, 204, 0.08) !important; border-left: 4px solid #00ffcc; }
         .lv-high { color: #ff4444; font-weight: bold; text-shadow: 0 0 8px #ff4444; animation: blink 0.8s infinite; }
         @keyframes blink { 50% { opacity: 0.5; } }
-        .score-box { background: #333; color: #fff; padding: 4px 10px; border-radius: 4px; font-weight: bold; border: 1px solid #444; }
+        .score-box { background: #333; color: #fff; padding: 5px; border-radius: 4px; font-weight: bold; border: 1px solid #444; display: inline-block; min-width: 40px; }
+        .score-detail { font-size: 9px; color: #aaa; display: block; margin-top: 4px; letter-spacing: 1px; }
         .info-tag { font-size: 10px; color: #777; display: block; margin-top: 3px; }
         .btn { border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         input { background: #111; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 4px; width: 180px; }
-        .del-btn { color: #ff4444; cursor: pointer; font-weight: 200; font-size: 16px; }
-        .del-btn:hover { color: #fff; background: #ff4444; border-radius: 2px; }
+        .del-btn { color: #ff4444; cursor: pointer; font-size: 16px; }
     </style>
 </head>
 <body>
@@ -42,13 +40,12 @@
                 <span id="eth-chg">--</span>
             </div>
         </div>
-
         <div class="controls">
             <div class="search-group">
                 <input type="text" id="search-input" placeholder="🔍 搜尋幣種..." oninput="renderTable()">
                 <button id="btn-sound" class="btn" onclick="toggleSound()" style="background:#222;color:#bbb;border:1px solid #444;">🔊 聲音: 開</button>
             </div>
-            <button id="btn-toggle" class="btn" onclick="toggleMonitor()" style="background:#f2a900;color:#000;">📡 啟動監控掃描</button>
+            <button id="btn-toggle" class="btn" onclick="toggleMonitor()" style="background:#f2a900;color:#000;">啟動監控掃描</button>
         </div>
     </div>
 
@@ -59,7 +56,7 @@
                 <th width="80">類型</th>
                 <th>幣種與區間</th>
                 <th>🚀 衝刺等級 (速度/主動買)</th>
-                <th>技術總分</th>
+                <th>技術總分 (分項拆解)</th>
                 <th>資費 (±0.05)</th>
                 <th>24H 漲跌</th>
             </tr>
@@ -69,14 +66,13 @@
 
 <script>
     let isMonitoring = false, isSoundOn = true, timer = null;
-    let rawResults = []; 
-    let blackList = new Set();
+    let rawResults = [], blackList = new Set();
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function toggleSound() { isSoundOn = !isSoundOn; document.getElementById('btn-sound').innerText = isSoundOn ? "🔊 聲音: 開" : "🔇 聲音: 關"; }
     function playBeep() {
         if (!isSoundOn) return;
-        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
         o.frequency.setValueAtTime(1000, audioCtx.currentTime); g.gain.setValueAtTime(0.05, audioCtx.currentTime);
         o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.1);
     }
@@ -99,7 +95,7 @@
     function toggleMonitor() {
         isMonitoring = !isMonitoring;
         const btn = document.getElementById('btn-toggle');
-        btn.innerText = isMonitoring ? "🛑 停止監控" : "📡 啟動監控掃描";
+        btn.innerText = isMonitoring ? "🛑 停止監控" : "啟動監控掃描";
         btn.style.background = isMonitoring ? "#ff4444" : "#f2a900";
         if(isMonitoring) { startScan(); timer = setInterval(startScan, 15000); } else { clearInterval(timer); }
     }
@@ -115,36 +111,25 @@
                 fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=60`).then(r=>r.json())
             ]);
             
-            const now = parseFloat(hK[24][4]);
-            const hCloses = hK.map(k=>parseFloat(k[4]));
-            const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7;
-            const ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
-            const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
-            const avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
+            const now = parseFloat(hK[24][4]), hCloses = hK.map(k=>parseFloat(k[4]));
+            const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7, ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
+            const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3])), avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
 
-            // 原有技術分
-            const score1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
-            const score2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
-            const score3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5);
-            const score4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
-            const totalScore = Math.round(score1 + score2 + score3 + score4);
+            // 技術拆解：[波動|糾結|量能|趨勢]
+            const s1 = Math.round(Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25));
+            const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
+            const s3 = Math.round(Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5));
+            const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
+            const totalScore = s1 + s2 + s3 + s4;
 
-            // 修正：速度等級邏輯
-            const totalVol1m = parseFloat(mK[59][5]);
-            const takerVol1m = parseFloat(mK[59][9]);
-            const avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / 60;
-            const vRatio = totalVol1m / avgVol1m; 
-            const buyRatio = (takerVol1m / totalVol1m) * 100;
+            const totalVol1m = parseFloat(mK[59][5]), takerVol1m = parseFloat(mK[59][9]), avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / 60;
+            const vRatio = totalVol1m / avgVol1m, buyRatio = (takerVol1m / totalVol1m) * 100;
 
-            // 核心修正：必須速度 > 1.2x 才開始計算高等級，防止 0.1x 誤判
             let thrustLv = 1;
             if (vRatio > 1.2) {
                 let base = vRatio * 1.8;
-                if (buyRatio > 65) base += 3;
-                else if (buyRatio < 50) base -= 2;
+                if (buyRatio > 65) base += 3; else if (buyRatio < 50) base -= 2;
                 thrustLv = Math.max(2, Math.min(10, Math.round(base)));
-            } else if (vRatio > 0.8) {
-                thrustLv = 1;
             }
 
             const funding = parseFloat(fRes.lastFundingRate * 100);
@@ -152,7 +137,7 @@
             if (isMonitoring && thrustLv >= 8 && isTangling) playBeep();
 
             return { 
-                s, totalScore, thrustLv, vRatio: vRatio.toFixed(1), buyRatio: buyRatio.toFixed(0),
+                s, totalScore, sDetail: `${s1}|${s2}|${s3}|${s4}`, thrustLv, vRatio: vRatio.toFixed(1), buyRatio: buyRatio.toFixed(0),
                 tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1),
                 funding, change: tData.priceChangePercent, isTangling 
             };
@@ -160,35 +145,28 @@
     }
 
     async function startScan() {
-        const tRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-        const tData = await tRes.json();
+        const tData = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr').then(r=>r.json());
         let baseSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 30000000).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 35);
-        
         let results = [];
         for (let d of baseSymbols) {
             if(blackList.has(d.symbol)) continue;
             const res = await getSymbolData(d.symbol);
             if (res && res.totalScore > 30) results.push(res);
         }
-        rawResults = results;
-        renderTable();
+        rawResults = results; renderTable();
     }
 
     function renderTable() {
         const keyword = document.getElementById('search-input').value.toUpperCase();
         let filtered = rawResults.filter(r => r.s.includes(keyword));
         filtered.sort((a, b) => (a.isTangling === b.isTangling) ? (b.totalScore - a.totalScore) : (a.isTangling ? -1 : 1));
-
         document.getElementById('list-body').innerHTML = filtered.map(r => `
             <tr class="${r.isTangling ? 'row-tangling' : ''}">
                 <td><span class="del-btn" onclick="removeSymbol('${r.s}')">✕</span></td>
                 <td>${r.isTangling ? '💎 糾結' : '📊 趨勢'}</td>
                 <td style="font-weight:bold;">${r.s.replace('USDT','')}<span class="info-tag">🎯 ${r.tp}% / -${r.sl}%</span></td>
-                <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}">
-                    LV ${r.thrustLv}
-                    <span class="info-tag">${r.vRatio}x / ${r.buyRatio}%</span>
-                </td>
-                <td><span class="score-box">${r.totalScore}</span></td>
+                <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}">LV ${r.thrustLv}<span class="info-tag">${r.vRatio}x / ${r.buyRatio}%</span></td>
+                <td><span class="score-box">${r.totalScore}</span><span class="score-detail">${r.sDetail}</span></td>
                 <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding.toFixed(4)}%</td>
                 <td style="color:#00ffcc">${r.change}%</td>
             </tr>
