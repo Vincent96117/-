@@ -2,50 +2,50 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V143 終極控盤版</title>
+    <title>HUNTER PRO | V144 自動排序版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
         .control-panel { display: flex; gap: 10px; margin-bottom: 20px; background: #252525; padding: 15px; border-radius: 8px; align-items: center; }
-        input { background: #333; border: 1px solid #555; color: #fff; padding: 8px; border-radius: 4px; outline: none; }
+        input { background: #333; border: 1px solid #555; color: #fff; padding: 8px; border-radius: 4px; outline: none; width: 150px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 12px; text-align: center; }
-        th { background: #252525; color: #f2a900; }
+        th { background: #252525; color: #f2a900; cursor: pointer; }
         .row-tangling { background: rgba(255, 68, 68, 0.15) !important; }
-        .row-weak { opacity: 0.5; background: rgba(50, 50, 50, 0.8); } /* 轉弱標記 */
+        .row-weak { opacity: 0.6; } 
         .score-box { background: #444; color: #fff; padding: 4px 10px; border-radius: 3px; font-weight: bold; font-size: 15px; }
         .score-100 { background: linear-gradient(45deg, #f2a900, #ff5500); box-shadow: 0 0 10px #ff5500; }
         .btn { background: #f2a900; color: #000; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .btn-del { background: #ff4444; color: #fff; padding: 2px 8px; border-radius: 3px; cursor: pointer; }
-        .tag-weak { color: #888; font-size: 10px; display: block; }
+        .btn-del { background: #ff4444; color: #fff; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; }
+        .tag-weak { color: #ff6666; font-size: 10px; display: block; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V143 獵人控盤系統</span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V144 自動排序控盤系統</span>
             <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
-        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動全市場掃描</button>
+        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動自動掃描</button>
     </div>
 
     <div class="control-panel">
-        <span>🔍 自選幣種評分：</span>
-        <input type="text" id="search-input" placeholder="例如: SOL, DOGE">
-        <button class="btn" onclick="searchSymbol()">分析</button>
-        <div id="search-result" style="margin-left: 20px;"></div>
+        <span>🔍 搜尋並加入追蹤：</span>
+        <input type="text" id="search-input" placeholder="例如: SOL">
+        <button class="btn" onclick="addSearchSymbol()">加入分析</button>
+        <span id="status-msg" style="margin-left: 10px; color: #00ffcc;"></span>
     </div>
 
     <table>
         <thead>
             <tr>
-                <th>狀態</th>
+                <th>類型</th>
                 <th>幣種</th>
-                <th>綜合評分</th>
-                <th>數據 (波/量/糾)</th>
+                <th>綜合評分 (高↓低)</th>
+                <th>數據 (波/量/距高)</th>
                 <th>資費 (±0.05)</th>
                 <th>24H 漲跌</th>
-                <th>管理</th>
+                <th>操作</th>
             </tr>
         </thead>
         <tbody id="list-body"></tbody>
@@ -54,26 +54,38 @@
 <script>
     let isMonitoring = false;
     let timer = null;
-    let userBlacklist = new Set(); // 存放手動刪除的幣種
-    const EXCLUDE_LIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'PAXGUSDT'];
+    let userWatchlist = new Set(); // 存放手動搜尋要強制追蹤的幣
+    let userBlacklist = new Set(); // 存放手動刪除的幣
+    const EXCLUDE_LIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
 
     function toggleMonitor() {
         isMonitoring = !isMonitoring;
-        document.getElementById('btn-toggle').innerText = isMonitoring ? "🛑 停止監控" : "📡 啟動監控";
+        document.getElementById('btn-toggle').innerText = isMonitoring ? "🛑 停止監控" : "📡 啟動掃描";
         document.getElementById('btn-toggle').style.background = isMonitoring ? "#ff4444" : "#f2a900";
         if(isMonitoring) { startScan(); timer = setInterval(startScan, 15000); }
         else { clearInterval(timer); }
     }
 
-    // 手動刪除按鈕
+    // 加入搜尋幣種
+    function addSearchSymbol() {
+        let s = document.getElementById('search-input').value.trim().toUpperCase();
+        if(!s) return;
+        if(!s.endsWith('USDT')) s += 'USDT';
+        userWatchlist.add(s);
+        userBlacklist.delete(s); // 如果在黑名單中則移除
+        document.getElementById('status-msg').innerText = `已加入 ${s} 追蹤`;
+        if(isMonitoring) startScan();
+    }
+
+    // 刪除按鈕
     function deleteSymbol(s) {
         userBlacklist.add(s + "USDT");
-        startScan(); // 立即重新渲染
+        userWatchlist.delete(s + "USDT");
+        startScan();
     }
 
     const getMA = (arr, p) => arr.length < p ? 0 : arr.slice(-p).reduce((a, b) => a + b, 0) / p;
 
-    // 核心評分邏輯 (V142 原始邏輯)
     async function calculateScore(s, quoteVolume) {
         try {
             const hK = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json());
@@ -81,52 +93,34 @@
             const high = parseFloat(hK[24][2]);
             const low = parseFloat(hK[24][3]);
             const now = parseFloat(hK[24][4]);
-
             const hCloses = hK.map(k=>parseFloat(k[4]));
             const ma7 = getMA(hCloses, 7);
             const ma25 = getMA(hCloses, 25);
             
+            // 波動爆發
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
             const avgR = ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24;
             const vRatio = (high - low) / (avgR || 0.0001);
             let vScore = Math.min(25, (vRatio / 2) * 25);
 
+            // 糾結度
             const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
             let tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0;
 
-            const avgVol = parseFloat(quoteVolume) / 24;
-            const qRatio = (parseFloat(quoteVolume) / 30000000); // 維持量能門檻
+            // 量比 (針對山寨幣優化)
+            const qRatio = (parseFloat(quoteVolume) / 25000000);
             let qScore = Math.min(25, qRatio * 10);
 
+            // 距高 2%
             const recentH = Math.max(...hK.slice(-4).map(k=>parseFloat(k[2])));
             const distToH = Math.abs(now - recentH) / recentH * 100;
-            let hScore = (distToH <= 2) ? 25 : 0;
+            let hScore = (distToH <= 2) ? 25 : (distToH <= 4 ? 10 : 0);
 
-            // 嚴格多頭判定
-            let finalScore = Math.round(vScore + tangleScore + qScore + hScore);
-            let isWeak = (now < open || now < ma7 || now < ma25); // 跌破開盤或均線即為轉弱
+            let isWeak = (now < open || now < ma7);
+            let finalScore = Math.round(vScore + tangleScore + qScore + hScore + (isWeak ? -20 : 10));
 
-            return { score: finalScore, isWeak, info: `波:${vRatio.toFixed(1)}x|量:${qRatio.toFixed(1)}x|距高:${distToH.toFixed(1)}%`, hDiff };
+            return { score: Math.max(0, finalScore), isWeak, info: `波:${vRatio.toFixed(1)}x|量:${qRatio.toFixed(1)}x|距高:${distToH.toFixed(1)}%` };
         } catch(e) { return null; }
-    }
-
-    // 搜尋功能
-    async function searchSymbol() {
-        let s = document.getElementById('search-input').value.trim().toUpperCase();
-        if(!s) return;
-        if(!s.endsWith('USDT')) s += 'USDT';
-        document.getElementById('search-result').innerText = "⏳ 正在計算...";
-        
-        const tData = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr?symbol='+s).then(r=>r.json());
-        const res = await calculateScore(s, tData.quoteVolume);
-        if(res) {
-            document.getElementById('search-result').innerHTML = `
-                <b>${s}</b> 分數: <span class="score-box">${res.score}</span> 
-                (${res.isWeak ? '🔴 轉弱' : '🟢 強勢'}) | ${res.info}
-            `;
-        } else {
-            document.getElementById('search-result').innerText = "找不到該幣種";
-        }
     }
 
     async function startScan() {
@@ -140,20 +134,21 @@
             const fundingMap = {};
             fData.forEach(f => { fundingMap[f.symbol] = parseFloat(f.lastFundingRate * 100).toFixed(4); });
 
-            let topSymbols = tData.filter(d => 
+            // 基礎池：成交量大於 15M 的幣 + 使用者手動追蹤的幣
+            let baseSymbols = tData.filter(d => 
                 d.symbol.endsWith('USDT') && 
                 !EXCLUDE_LIST.includes(d.symbol) && 
                 !userBlacklist.has(d.symbol) &&
-                parseFloat(d.quoteVolume) > 15000000
-            ).slice(0, 40);
+                (parseFloat(d.quoteVolume) > 15000000 || userWatchlist.has(d.symbol))
+            ).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 45);
 
             let results = [];
-            for (let d of topSymbols) {
-                await new Promise(r => setTimeout(r, 40));
+            for (let d of baseSymbols) {
+                await new Promise(r => setTimeout(r, 35));
                 const res = await calculateScore(d.symbol, d.quoteVolume);
-                if (res && (res.score > 35 || res.isWeak)) { // 分數夠或曾經強勢但轉弱的都留著
+                if (res && (res.score > 30 || userWatchlist.has(d.symbol))) {
                     results.push({
-                        symbol: d.symbol,
+                        symbol: d.symbol.replace('USDT',''),
                         score: res.score,
                         isWeak: res.isWeak,
                         info: res.info,
@@ -164,20 +159,27 @@
                 }
             }
 
-            results.sort((a, b) => (a.isTangling === b.isTangling) ? (b.score - a.score) : (a.isTangling ? -1 : 1));
+            // --- 核心排序邏輯 ---
+            results.sort((a, b) => {
+                // 1. 資費糾結 (±0.05) 優先排在最上面
+                if (a.isTangling && !b.isTangling) return -1;
+                if (!a.isTangling && b.isTangling) return 1;
+                // 2. 同樣是資費糾結或同樣不是，則按分數從高到低排
+                return b.score - a.score;
+            });
 
             document.getElementById('list-body').innerHTML = results.map(r => `
                 <tr class="${r.isTangling ? 'row-tangling' : ''} ${r.isWeak ? 'row-weak' : ''}">
-                    <td>
-                        ${r.isTangling ? '<span style="color:#ff4444;font-weight:bold;">糾結突破</span>' : '一般'}
-                        ${r.isWeak ? '<span class="tag-weak">⚠️ 已轉弱</span>' : ''}
+                    <td style="font-weight:bold;">
+                        ${r.isTangling ? '🔥 糾結突破' : '⚡ 追蹤中'}
+                        ${r.isWeak ? '<span class="tag-weak">⚠️ 走弱</span>' : ''}
                     </td>
-                    <td style="font-weight:bold;">${r.symbol.replace('USDT','')}</td>
+                    <td style="font-size:14px; font-weight:bold;">${r.symbol}</td>
                     <td><span class="score-box ${r.score >= 90 ? 'score-100' : ''}">${r.score}</span></td>
-                    <td class="info-text">${r.info}</td>
-                    <td style="color:${r.isTangling ? '#ff4444':'#eee'}">${r.funding}%</td>
+                    <td style="color:#aaa; font-size:11px;">${r.info}</td>
+                    <td style="color:${r.isTangling ? '#ff4444' : '#eee'}; font-weight:bold;">${r.funding}%</td>
                     <td style="color:${parseFloat(r.change)>=0 ? '#00ffcc':'#ff6666'}">${r.change}%</td>
-                    <td><span class="btn-del" onclick="deleteSymbol('${r.symbol.replace('USDT','')}')">❌ 刪除</span></td>
+                    <td><span class="btn-del" onclick="deleteSymbol('${r.symbol}')">❌ 刪除</span></td>
                 </tr>
             `).join('');
             document.getElementById('update-time').innerText = "最後刷新: " + new Date().toLocaleTimeString();
