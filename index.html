@@ -2,57 +2,60 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO V132 | 精準過濾版</title>
+    <title>HUNTER PRO V133 | 核心量能啟動監控</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
-        .dashboard { background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; }
-        .filter-ctrl { background: #252525; padding: 8px 15px; border-radius: 6px; border: 1px solid #f2a900; display: flex; align-items: center; gap: 10px; }
+        .dashboard { background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; justify-content: space-between; }
+        .dashboard-left { display: flex; align-items: center; gap: 20px; }
+        .filter-ctrl { background: #252525; padding: 8px 15px; border-radius: 6px; border: 1px solid #f2a900; display: flex; align-items: center; gap: 10px; font-weight: bold; }
         .search-area { background: #252525; padding: 8px 15px; border-radius: 6px; border: 1px solid #444; }
         input[type="text"] { background: #333; color: #fff; border: 1px solid #555; padding: 5px; border-radius: 4px; width: 80px; }
-        
-        /* 開關樣式 */
-        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        button { background: #444; color: #fff; border: 1px solid #666; padding: 5px 12px; cursor: pointer; border-radius: 4px; }
+        button:hover { background: #555; }
+
+        /* 滑動開關 UI */
+        .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 20px; }
-        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: #f2a900; }
-        input:checked + .slider:before { transform: translateX(20px); }
+        input:checked + .slider:before { transform: translateX(16px); }
 
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 8px; text-align: center; }
-        th { background: #252525; color: #f2a900; position: sticky; top: 0; }
+        th { background: #252525; color: #f2a900; position: sticky; top: 0; z-index: 10; }
         
-        .status-launch { background: #d97706; color: #fff; padding: 2px 5px; border-radius: 3px; font-weight: bold; animation: blink 0.8s infinite; }
-        .status-tangle { color: #888; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; }
+        /* 狀態樣式 */
+        .status-launch { background: #d97706; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold; animation: blink 0.8s infinite; }
+        .status-tangle { color: #888; border: 1px solid #444; padding: 2px 6px; border-radius: 3px; }
         .funding-alert { background: #ff0000; color: #fff; font-weight: bold; padding: 2px 5px; border-radius: 3px; }
-        .score-box { background: #444; color: #fff; padding: 3px 8px; border-radius: 3px; font-weight: bold; }
-        .score-vip { background: linear-gradient(45deg, #f2a900, #ffcc00) !important; color: #000 !important; box-shadow: 0 0 10px #f2a900; }
+        .score-box { background: #444; color: #fff; padding: 3px 8px; border-radius: 3px; font-weight: bold; border: 1px solid #555; }
+        .score-vip { background: linear-gradient(45deg, #f2a900, #ffcc00) !important; color: #000 !important; box-shadow: 0 0 10px rgba(242,169,0,0.5); border: none !important; }
         
         .up { color: #00ffcc; } .down { color: #ff6666; }
-        .row-vip { background-color: rgba(242, 169, 0, 0.1) !important; }
-        @keyframes blink { 50% { opacity: 0.3; } }
+        .row-vip { background-color: rgba(242, 169, 0, 0.08) !important; }
+        @keyframes blink { 50% { opacity: 0.4; } }
     </style>
 </head>
 <body>
-    <h1>🎯 HUNTER PRO V132 (啟動模式過濾)</h1>
+    <h1>🎯 HUNTER PRO V133</h1>
     
     <div class="dashboard">
-        <div id="clock" style="font-size: 1.1em; color: #f2a900;">--:--:--</div>
-        
-        <div class="filter-ctrl">
-            <span>顯示糾結幣</span>
-            <label class="switch">
-                <input type="checkbox" id="showTangle" checked>
-                <span class="slider"></span>
-            </label>
+        <div class="dashboard-left">
+            <div id="clock" style="font-size: 1.1em; color: #f2a900; min-width: 80px;">00:00:00</div>
+            <div class="filter-ctrl">
+                <span>顯示糾結幣</span>
+                <label class="switch">
+                    <input type="checkbox" id="showTangle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
         </div>
 
         <div class="search-area">
-            🔍 查分：<input type="text" id="symbolInp" placeholder="SOL">
-            <button onclick="manualCheck()" style="cursor:pointer">查詢</button>
+            🔍 快速查分：<input type="text" id="symbolInp" placeholder="例如: SOL">
+            <button onclick="manualCheck()">診斷</button>
         </div>
-        
-        <div id="scanner-status" style="font-size: 12px; color: #aaa;">監控中 (70分門檻)...</div>
     </div>
 
     <table id="hunter-table">
@@ -60,17 +63,19 @@
             <tr>
                 <th>幣種</th>
                 <th>狀態</th>
-                <th>評分</th>
-                <th>價格</th>
+                <th>量能評分</th>
+                <th>當前價格</th>
                 <th>24H 漲跌</th>
-                <th>最高/最低</th>
-                <th>資費</th>
-                <th>糾結度%</th>
-                <th>成交額</th>
+                <th>最高 / 最低</th>
+                <th>資費 (Funding)</th>
+                <th>糾結寬度%</th>
+                <th>24H 成交額</th>
             </tr>
         </thead>
         <tbody id="hunter-body"></tbody>
     </table>
+
+    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
 
 <script>
     const TANGLE_LIMIT = 1.5; 
@@ -88,17 +93,20 @@
             const tData = await tRes.json();
             const fData = await fRes.json();
             
+            // 過濾成交額 > 800M 且為 USDT 合約
             const potentialSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 8000000);
             const body = document.getElementById('hunter-body');
-            let newRows = "";
+            let htmlRows = "";
 
             for (let item of potentialSymbols) {
                 const s = item.symbol;
+                
+                // 1. 核心評分計算
                 const range = ((parseFloat(item.highPrice) - parseFloat(item.lowPrice)) / parseFloat(item.lowPrice)) * 100;
                 let score = Math.min(100, Math.round(range * 8 + 35));
-                
                 if (score < MIN_SCORE) continue; 
 
+                // 2. 抓取 5m K線算 7/25/99 均線
                 const kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=5m&limit=100`);
                 const k = await kRes.json();
                 if (k.length < 99) continue;
@@ -106,46 +114,59 @@
                 const closePrices = k.map(x => parseFloat(x[4]));
                 const lastClose = closePrices[closePrices.length - 1];
                 const lastOpen = parseFloat(k[k.length-1][1]);
+                
                 const ma7 = getMA(closePrices, 7);
                 const ma25 = getMA(closePrices, 25);
                 const ma99 = getMA(closePrices, 99);
-                const tangleGap = ((Math.max(ma7,ma25,ma99) - Math.min(ma7,ma25,ma99)) / Math.min(ma7,ma25,ma99) * 100).toFixed(2);
+                
+                const maxMA = Math.max(ma7, ma25, ma99);
+                const minMA = Math.min(ma7, ma25, ma99);
+                const tangleGap = ((maxMA - minMA) / minMA * 100).toFixed(2);
 
-                let isLaunched = (lastClose > ma7 && lastClose > ma25 && lastClose > ma99 && lastClose > lastOpen && tangleGap <= TANGLE_LIMIT);
-                let isTangled = (tangleGap <= TANGLE_LIMIT);
+                const isLaunched = (lastClose > ma7 && lastClose > ma25 && lastClose > ma99 && lastClose > lastOpen && tangleGap <= TANGLE_LIMIT);
+                const isTangled = (tangleGap <= TANGLE_LIMIT);
 
-                // 過濾邏輯：如果關閉開關，且該幣不是「啟動」狀態，就跳過不顯示
+                // 根據開關邏輯過濾
                 if (!showTangle && !isLaunched) continue;
-                // 如果連糾結都稱不上，也跳過
                 if (!isTangled && !isLaunched) continue;
 
-                let statusHtml = isLaunched ? '<span class="status-launch">🚀 啟動突破</span>' : '<span class="status-tangle">⏳ 均線糾結</span>';
-
+                // 3. 獲取資費與其他數據
                 const fund = fData.find(f => f.symbol === s);
                 const fundRate = fund ? (parseFloat(fund.lastFundingRate) * 100).toFixed(4) : "0.0000";
                 const fundClass = Math.abs(parseFloat(fundRate)) >= 0.05 ? 'funding-alert' : '';
                 const change = parseFloat(item.priceChangePercent);
 
-                newRows += `
+                let statusHtml = isLaunched ? '<span class="status-launch">🚀 啟動突破</span>' : '<span class="status-tangle">⏳ 均線糾結</span>';
+                if (isLaunched) playAlertOnce(s);
+
+                htmlRows += `
                     <tr class="${score >= 80 ? 'row-vip' : ''}">
                         <td style="font-weight:bold">${s.replace('USDT','')}</td>
                         <td>${statusHtml}</td>
                         <td><span class="score-box ${score >= 80 ? 'score-vip' : ''}">${score}</span></td>
-                        <td style="font-weight:bold">${lastClose}</td>
+                        <td style="font-weight:bold; color:#f2a900">${lastClose}</td>
                         <td class="${change >= 0 ? 'up' : 'down'}">${change}%</td>
-                        <td style="font-size:11px">${item.highPrice} / ${item.lowPrice}</td>
+                        <td style="font-size:11px; color:#aaa">${item.highPrice} / ${item.lowPrice}</td>
                         <td><span class="${fundClass}">${fundRate}%</span></td>
                         <td class="${tangleGap <= 1 ? 'up' : ''}">${tangleGap}%</td>
                         <td>${(item.quoteVolume/1000000).toFixed(2)}M</td>
                     </tr>
                 `;
             }
-            body.innerHTML = newRows;
-        } catch (e) { console.error(e); }
+            body.innerHTML = htmlRows;
+        } catch (e) { console.error("Update Error:", e); }
     }
 
     function getMA(prices, period) {
         return prices.slice(-period).reduce((a, b) => a + b) / period;
+    }
+
+    let lastAlerted = "";
+    function playAlertOnce(s) {
+        if (lastAlerted !== s) {
+            document.getElementById('alertSound').play().catch(()=>{});
+            lastAlerted = s;
+        }
     }
 
     function manualCheck() {
