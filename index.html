@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V150 科學停利版</title>
+    <title>HUNTER PRO | V150 純技術導航版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
@@ -12,7 +12,7 @@
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 12px; text-align: center; }
         th { background: #252525; color: #f2a900; }
-        .row-tangling { background: rgba(0, 255, 204, 0.1) !important; border-left: 4px solid #00ffcc; }
+        .row-highlight { background: rgba(242, 169, 0, 0.1) !important; border-left: 4px solid #f2a900; }
         .tp-tag { background: #004433; color: #00ffcc; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 5px; border: 1px solid #00ffcc; }
         .score-box { background: #444; color: #fff; padding: 4px 10px; border-radius: 3px; font-weight: bold; font-size: 15px; }
         .score-100 { background: linear-gradient(45deg, #f2a900, #ff5500); box-shadow: 0 0 10px #ff5500; }
@@ -23,10 +23,10 @@
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V150 獵人雷達 (科學停利建議版)</span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 HUNTER PRO 技術雷達 (V150)</span>
             <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
-        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動監控</button>
+        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動掃描</button>
     </div>
 
     <div class="control-panel">
@@ -40,10 +40,10 @@
         <thead>
             <tr>
                 <th>類型</th>
-                <th>幣種與建議停利</th>
+                <th>幣種與科學停利</th>
                 <th>技術總分</th>
-                <th>資費 (±0.05優先)</th>
-                <th>數據 (波/距高)</th>
+                <th>數據標記</th>
+                <th>指標拆解 (波/距高)</th>
                 <th>24H 漲跌</th>
                 <th>管理</th>
             </tr>
@@ -79,27 +79,21 @@
             const hCloses = hK.map(k=>parseFloat(k[4])), ma7 = getMA(hCloses, 7), ma25 = getMA(hCloses, 25);
             const funding = parseFloat(fRes.lastFundingRate * 100);
 
-            // --- 科學停利計算 (ATR 邏輯) ---
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
             const avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
             const atrPercent = (avgR / now) * 100;
-            const suggestedTP = (atrPercent * 2.8).toFixed(1); // 以 2.8 倍 ATR 作為停利點
+            const suggestedTP = (atrPercent * 2.8).toFixed(1); 
 
-            // 1. 波動分 (25分)
             const vRatio = (parseFloat(hK[24][2]) - parseFloat(hK[24][3])) / avgR;
             const vScore = Math.min(25, (vRatio / 1.8) * 25);
-
-            // 2. 糾結分 (25分)
             const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
             const tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0;
-
-            // 3. 量能分 (25分)
             const qScore = Math.min(25, (parseFloat(tData.quoteVolume) / 40000000) * 12.5);
-
-            // 4. 突破分 (25分)
             const recentH = Math.max(...hK.slice(-4).map(k=>parseFloat(k[2])));
             const distToH = Math.abs(now - recentH) / recentH * 100;
             const hScore = (distToH <= 2) ? 25 : 0;
+
+            const isFocus = (funding >= -0.05 && funding <= 0.05);
 
             return { 
                 s, totalScore: Math.round(vScore + tangleScore + qScore + hScore), 
@@ -107,7 +101,7 @@
                 funding, vRatio, distToH, suggestedTP,
                 change: tData.priceChangePercent, 
                 isBull: (now >= open && now > ma7 && ma7 > ma25),
-                isTangling: (funding >= -0.05 && funding <= 0.05)
+                isFocus
             };
         } catch(e) { return null; }
     }
@@ -123,7 +117,7 @@
             <div style="font-weight:bold; color:#f2a900;">📊 ${s} 技術診斷 | <span style="color:#00ffcc">建議停利: ${d.suggestedTP}%</span></div>
             <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:12px; margin-top:5px;">
                 <div>🌪️ 波動：${d.vScore.toFixed(1)} / 25</div>
-                <div>🧶 糾結：${d.tangleScore.toFixed(1)} / 25</div>
+                <div>🧶 均線：${d.tangleScore.toFixed(1)} / 25</div>
                 <div>📈 量能：${d.qScore.toFixed(1)} / 25</div>
                 <div>🎯 突破：${d.hScore} / 25</div>
             </div>
@@ -146,17 +140,17 @@
                 if (res && res.isBull && res.totalScore > 35) results.push(res);
             }
 
-            results.sort((a, b) => (a.isTangling === b.isTangling) ? (b.totalScore - a.totalScore) : (a.isTangling ? -1 : 1));
+            results.sort((a, b) => (a.isFocus === b.isFocus) ? (b.totalScore - a.totalScore) : (a.isFocus ? -1 : 1));
 
             document.getElementById('list-body').innerHTML = results.map(r => `
-                <tr class="${r.isTangling ? 'row-tangling' : ''}">
-                    <td style="font-weight:bold; color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.isTangling ? '💎 資費糾結' : '📊 趨勢追蹤'}</td>
+                <tr class="${r.isFocus ? 'row-highlight' : ''}">
+                    <td style="font-weight:bold; color:${r.isFocus ? '#f2a900' : '#eee'}">${r.isFocus ? '🎯 獵人鎖定' : '📊 趨勢追蹤'}</td>
                     <td style="font-weight:bold;">
                         ${r.s.replace('USDT','')} 
                         <span class="tp-tag">🎯 TP: ${r.suggestedTP}%</span>
                     </td>
                     <td><span class="score-box ${r.totalScore >= 80 ? 'score-100' : ''}">${r.totalScore}</span></td>
-                    <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding.toFixed(4)}%</td>
+                    <td style="color:${r.isFocus ? '#00ffcc' : '#888'}; font-size:11px;">數據標記: ${r.funding.toFixed(4)}%</td>
                     <td style="color:#aaa;">波:${r.vRatio.toFixed(1)}x | 距高:${r.distToH.toFixed(1)}%</td>
                     <td style="color:#00ffcc">${r.change}%</td>
                     <td><button class="btn-del" onclick="deleteSymbol('${r.s.replace('USDT','')}')">❌</button></td>
