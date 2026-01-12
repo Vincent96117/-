@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V127 價格跳動版</title>
+    <title>HUNTER PRO | V128 價格全面對標版</title>
     <style>
         :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; --double: #f2a900; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -13,6 +13,7 @@
         .scroll { flex: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         td { padding: 8px 4px; border-bottom: 1px solid #21262d; text-align: center; vertical-align: middle; }
+        /* 核心變色：背景大面積染色 */
         .win-row { background-color: #064e3b !important; color: #fff !important; } 
         .loss-row { background-color: #7f1d1d !important; color: #fff !important; }
         .funding-high { background-color: #a6611a !important; color: white !important; font-weight: bold; }
@@ -25,7 +26,7 @@
 
 <div class="header-main">
     <div><span style="color:#f2a900">BTC: <span id="btc-live">--</span></span></div>
-    <div style="color:var(--surge); font-weight:bold;">V127 | 🎯 08:00 定格 (即時價格修復)</div>
+    <div style="color:var(--double); font-weight:bold;">V128 | 🎯 08:00 定格 (現價全面校準)</div>
     <button onclick="location.reload();">🔄 重新整理</button>
 </div>
 
@@ -60,15 +61,14 @@
                 
                 if(s==='BTC') { btcChange=p24; document.getElementById('btc-live').innerText=`${p} (${p24}%)`; }
                 
-                // 更新全域價格圖，確保定格表能抓到
+                // 更新即時價格
                 if(!dataMap[s]) dataMap[s] = {lp:p, avg4hVol: 5000000};
                 dataMap[s].lp = p; 
 
-                // 核心/趨勢監控邏輯 (略)
+                // 監控邏輯
                 const rsS = (p24 - btcChange) > 0 ? Math.min(45, (p24 - btcChange) * 11) : 0;
                 const sqS = Math.max(0, Math.min(30, (6.5 - range) * 4.6));
                 const coreScore = (vol > 8000000) ? Math.min(100, Math.round(rsS + sqS + Math.min(25, (vol/10000000)*5) + 5)) : 0;
-                const trendScore = Math.min(100, Math.round(rsS + sqS + 30));
                 
                 if(p24 > 8.0) {
                     const sl = document.getElementById('strong-list');
@@ -77,8 +77,7 @@
                     else er.cells[1].innerText = `${p24}%`;
                 }
                 if(coreScore >= 20) updateList(potOld, {s, score:coreScore, desc:`縮${range.toFixed(1)}%`, isDouble:false}, 'table-old');
-                if(trendScore >= 20 && !potOld.find(x=>x.s===s)) updateList(potNew, {s, score:trendScore, desc:`放量`, isDouble:false}, 'table-new');
-
+                
                 const inst = ((p-dataMap[s].lp)/dataMap[s].lp)*100;
                 if(inst>=1.2) {
                     const b = document.getElementById('surge-list');
@@ -86,7 +85,7 @@
                     if(b.children.length>10) b.lastElementChild.remove();
                 }
             });
-            renderSnapshot(); // WebSocket 每次跳動都更新定格表價格
+            renderSnapshot();
         };
     }
 
@@ -94,13 +93,21 @@
         try {
             const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr`);
             const data = await res.json();
-            const top = data.filter(d => d.symbol.endsWith('USDT')).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 60);
+            const top = data.filter(d => d.symbol.endsWith('USDT')).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 70);
+            
             for(let d of top) {
+                const s = d.symbol.replace('USDT','');
                 const k = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${d.symbol}&interval=1d&limit=1`).then(r=>r.json());
                 if(k.length) {
                     const open = parseFloat(k[0][1]);
+                    const currentPrice = parseFloat(d.lastPrice); // 主動抓取 Ticker 內的現價
                     const score = Math.min(100, Math.round((parseFloat(d.priceChangePercent) * 10) + 30));
-                    if(score >= 40) lockedSnapshot.push({ s: d.symbol.replace('USDT',''), open, score });
+                    
+                    if(!dataMap[s]) dataMap[s] = {lp: currentPrice, avg4hVol: 5000000};
+                    if(score >= 40) {
+                        lockedSnapshot.push({ s, open, score });
+                        renderSnapshot();
+                    }
                 }
             }
         } catch(e){}
@@ -110,12 +117,12 @@
         const dom = document.getElementById('snap-list');
         dom.innerHTML = '';
         lockedSnapshot.sort((a,b)=>b.score-a.score).forEach(it => {
-            const cur = dataMap[it.s]?.lp || it.open; // 這裡確保抓到 WebSocket 的 lp (最新價)
+            const cur = dataMap[it.s]?.lp || it.open;
             const diff = ((cur - it.open) / it.open * 100).toFixed(2);
             let rowClass = (parseFloat(diff) >= 10) ? 'win-row' : (parseFloat(diff) <= -10 ? 'loss-row' : '');
             dom.insertAdjacentHTML('beforeend', `<tr class="${rowClass}">
                 <td style="width:30%; text-align:left; padding-left:10px;"><span class="snap-score">${it.score}</span>${it.s}</td>
-                <td style="width:40%; color:inherit;">${it.open.toFixed(3)}→${cur.toFixed(3)}</td>
+                <td style="width:40%; color:inherit;">${it.open.toFixed(4)}→${cur.toFixed(4)}</td>
                 <td style="width:30%; font-weight:bold;" class="${parseFloat(diff)>=0?'up':'down'}">${diff}%</td>
             </tr>`);
         });
