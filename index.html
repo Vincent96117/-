@@ -2,30 +2,36 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V153 | 聲光加速版</title>
+    <title>HUNTER V154 | 邏輯校正版</title>
     <style>
-        body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
-        .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #333; padding: 12px; text-align: center; }
-        th { background: #252525; color: #f2a900; }
-        .row-tangling { background: rgba(0, 255, 204, 0.1) !important; border-left: 4px solid #00ffcc; }
-        .lv-high { color: #ff4444; font-weight: bold; text-shadow: 0 0 8px #ff4444; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
-        .score-box { background: #444; color: #fff; padding: 4px 10px; border-radius: 3px; font-weight: bold; font-size: 15px; }
-        .btn { border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-left: 10px; }
-        #btn-toggle { background: #f2a900; color: #000; }
-        #btn-sound { background: #444; color: #fff; }
+        body { background: #0b0e11; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #181a20; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #333; }
+        .controls { display: flex; gap: 10px; align-items: center; }
+        input { background: #2b2f36; border: 1px solid #444; color: #fff; padding: 8px 15px; border-radius: 5px; width: 200px; }
+        table { width: 100%; border-collapse: collapse; background: #181a20; border-radius: 10px; overflow: hidden; }
+        th, td { padding: 15px; text-align: center; border-bottom: 1px solid #2b2f36; }
+        th { background: #2b2f36; color: #848e9c; font-weight: normal; font-size: 13px; }
+        .row-tangling { background: rgba(0, 192, 135, 0.05) !important; border-left: 4px solid #00c087; }
+        .lv-high { color: #f6465d; font-weight: bold; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.4; } }
+        .score-box { background: #2b3139; color: #f0b90b; padding: 5px 12px; border-radius: 4px; font-weight: bold; font-size: 16px; border: 1px solid #444; }
+        .btn { border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        #btn-toggle { background: #f0b90b; color: #000; }
+        #btn-sound { background: #2b3139; color: #fff; border: 1px solid #444; }
+        .symbol-name { font-size: 16px; font-weight: bold; color: #fff; }
+        .tp-box { color: #00c087; font-size: 12px; margin-top: 4px; }
     </style>
 </head>
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V153 獵人雷達 (聲光報警版)</span>
+            <span style="font-size: 24px; font-weight: bold; color: #f0b90b;">🎯 V154 獵人雷達</span>
+            <span style="font-size: 12px; color: #848e9c; margin-left: 10px;">(邏輯校準 + 搜尋功能恢復)</span>
         </div>
-        <div>
+        <div class="controls">
+            <input type="text" id="searchInput" placeholder="搜尋幣種 (如: BTC)..." oninput="renderTable()">
             <button id="btn-sound" class="btn" onclick="toggleSound()">🔊 聲音: 開</button>
-            <button id="btn-toggle" class="btn" onclick="toggleMonitor()">📡 啟動監控</button>
+            <button id="btn-toggle" class="btn" onclick="toggleMonitor()">📡 啟動掃描</button>
         </div>
     </div>
 
@@ -33,9 +39,9 @@
         <thead>
             <tr>
                 <th>類型</th>
-                <th>幣種與區間</th>
-                <th>🚀 加速等級</th>
-                <th>技術總分</th>
+                <th>幣種與空間 (ATR模式)</th>
+                <th>🚀 加速等級 (1m)</th>
+                <th>技術總分 (1h)</th>
                 <th>資費 (±0.05優先)</th>
                 <th>24H 漲跌</th>
             </tr>
@@ -47,6 +53,7 @@
     let isMonitoring = false;
     let isSoundOn = true;
     let timer = null;
+    let allData = [];
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function toggleSound() {
@@ -54,33 +61,21 @@
         document.getElementById('btn-sound').innerText = isSoundOn ? "🔊 聲音: 開" : "🔇 聲音: 關";
     }
 
-    // 嗶嗶聲產生器
     function playBeep() {
         if (!isSoundOn) return;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 高音
+        osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
         gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.1);
-        // 連響第二聲
-        setTimeout(() => {
-            const osc2 = audioCtx.createOscillator();
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(1200, audioCtx.currentTime);
-            osc2.connect(gain);
-            osc2.start();
-            osc2.stop(audioCtx.currentTime + 0.1);
-        }, 150);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.15);
     }
 
     function toggleMonitor() {
         isMonitoring = !isMonitoring;
-        document.getElementById('btn-toggle').innerText = isMonitoring ? "🛑 停止監控" : "📡 啟動掃描";
-        document.getElementById('btn-toggle').style.background = isMonitoring ? "#ff4444" : "#f2a900";
+        const btn = document.getElementById('btn-toggle');
+        btn.innerText = isMonitoring ? "🛑 停止監控" : "📡 啟動掃描";
+        btn.style.background = isMonitoring ? "#f6465d" : "#f0b90b";
         if(isMonitoring) { startScan(); timer = setInterval(startScan, 15000); }
         else { clearInterval(timer); }
     }
@@ -91,7 +86,7 @@
                 fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json()),
                 fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${s}`).then(r=>r.json()),
                 fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json()),
-                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=60`).then(r=>r.json())
+                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=30`).then(r=>r.json())
             ]);
             
             const now = parseFloat(hK[24][4]);
@@ -99,35 +94,36 @@
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7;
             const ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
             
-            // 技術總分 (不變)
+            // --- 嚴格核對：1H 技術總分 (不變) ---
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
-            const avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
-            const score1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
-            const score2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
-            const score3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5);
-            const score4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
+            const avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.0001;
             
-            // 加速等級 (1m)
-            const currentVol1m = parseFloat(mK[59][5]);
-            const avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / 60;
-            const vRatio = currentVol1m / avgVol1m;
+            const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25); // 波動
+            const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0; // 糾結
+            const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5); // 量能 (4500萬基準)
+            const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0; // 趨勢
+            const totalScore = Math.round(s1+s2+s3+s4);
+
+            // --- 獨立加速 (1m) ---
+            const currentVol1m = parseFloat(mK[mK.length-1][5]);
+            const avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / mK.length;
+            const vRatio = avgVol1m > 0 ? (currentVol1m / avgVol1m) : 0;
+            
             let thrustLv = 1;
             if(vRatio > 8.0) thrustLv = 10;
             else if(vRatio > 5.0) thrustLv = 8;
             else if(vRatio > 3.0) thrustLv = 7;
             else if(vRatio > 2.0) thrustLv = 6;
+            else if(vRatio > 1.2) thrustLv = 4;
             else if(vRatio > 1.0) thrustLv = 3;
 
             const funding = parseFloat(fRes.lastFundingRate * 100);
             const isTangling = (funding >= -0.05 && funding <= 0.05);
 
-            // 嗶嗶叫判斷：加速LV 8以上 且 資費在範圍內
-            if (isMonitoring && thrustLv >= 8 && isTangling) {
-                playBeep();
-            }
+            if (isMonitoring && thrustLv >= 8 && isTangling) playBeep();
 
             return { 
-                s, totalScore: Math.round(score1+score2+score3+score4), thrustLv, vRatio: vRatio.toFixed(1),
+                s, totalScore, thrustLv, vRatio: vRatio.toFixed(1),
                 tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1),
                 funding, change: tData.priceChangePercent, isTangling
             };
@@ -137,23 +133,34 @@
     async function startScan() {
         const tRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
         const tData = await tRes.json();
-        let baseSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 30000000).slice(0, 30);
+        let baseSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 30000000).slice(0, 40);
         
         let results = [];
         for (let d of baseSymbols) {
             const res = await getSymbolData(d.symbol);
             if (res && res.totalScore > 35) results.push(res);
         }
-        results.sort((a, b) => (a.isTangling === b.isTangling) ? (b.totalScore - a.totalScore) : (a.isTangling ? -1 : 1));
+        allData = results.sort((a, b) => (a.isTangling === b.isTangling) ? (b.totalScore - a.totalScore) : (a.isTangling ? -1 : 1));
+        renderTable();
+    }
 
-        document.getElementById('list-body').innerHTML = results.map(r => `
+    function renderTable() {
+        const search = document.getElementById('searchInput').value.toUpperCase();
+        const filtered = allData.filter(d => d.s.includes(search));
+        
+        document.getElementById('list-body').innerHTML = filtered.map(r => `
             <tr class="${r.isTangling ? 'row-tangling' : ''}">
-                <td>${r.isTangling ? '💎 糾結' : '📊 趨勢'}</td>
-                <td style="font-weight:bold;">${r.s.replace('USDT','')}<span style="color:#00ffcc;font-size:11px;margin-left:5px;">🎯${r.tp}%/-${r.sl}%</span></td>
-                <td class="${r.thrustLv >= 8 ? 'lv-high' : 'lv-mid'}">LV ${r.thrustLv} (${r.vRatio}x)</td>
+                <td style="color:${r.isTangling ? '#00c087' : '#848e9c'}">${r.isTangling ? '💎 糾結' : '📊 趨勢'}</td>
+                <td>
+                    <div class="symbol-name">${r.s.replace('USDT','')}</div>
+                    <div class="tp-box">🎯 ${r.tp}% / -${r.sl}%</div>
+                </td>
+                <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}" style="font-size:15px;">
+                    LV ${r.thrustLv} <span style="font-size:11px;opacity:0.6;">(${r.vRatio}x)</span>
+                </td>
                 <td><span class="score-box">${r.totalScore}</span></td>
-                <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding.toFixed(4)}%</td>
-                <td>${r.change}%</td>
+                <td style="color:${r.isTangling ? '#00c087' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
+                <td style="color:${parseFloat(r.change)>=0?'#00c087':'#f6465d'}">${r.change}%</td>
             </tr>
         `).join('');
     }
