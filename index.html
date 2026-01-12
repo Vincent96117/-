@@ -2,21 +2,29 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO V132 | 強勢監控版</title>
+    <title>HUNTER PRO V132 | 精準過濾版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
-        .dashboard { background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; display: flex; gap: 20px; align-items: center; justify-content: space-between; }
-        .search-area { background: #252525; padding: 10px; border-radius: 6px; border: 1px solid #444; }
-        input { background: #333; color: #fff; border: 1px solid #555; padding: 5px; border-radius: 4px; width: 100px; }
+        .dashboard { background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; }
+        .filter-ctrl { background: #252525; padding: 8px 15px; border-radius: 6px; border: 1px solid #f2a900; display: flex; align-items: center; gap: 10px; }
+        .search-area { background: #252525; padding: 8px 15px; border-radius: 6px; border: 1px solid #444; }
+        input[type="text"] { background: #333; color: #fff; border: 1px solid #555; padding: 5px; border-radius: 4px; width: 80px; }
+        
+        /* 開關樣式 */
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #f2a900; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #333; padding: 8px; text-align: center; }
         th { background: #252525; color: #f2a900; position: sticky; top: 0; }
         
-        /* 狀態顏色 */
         .status-launch { background: #d97706; color: #fff; padding: 2px 5px; border-radius: 3px; font-weight: bold; animation: blink 0.8s infinite; }
         .status-tangle { color: #888; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; }
         .funding-alert { background: #ff0000; color: #fff; font-weight: bold; padding: 2px 5px; border-radius: 3px; }
-        
         .score-box { background: #444; color: #fff; padding: 3px 8px; border-radius: 3px; font-weight: bold; }
         .score-vip { background: linear-gradient(45deg, #f2a900, #ffcc00) !important; color: #000 !important; box-shadow: 0 0 10px #f2a900; }
         
@@ -26,29 +34,38 @@
     </style>
 </head>
 <body>
-    <h1>🎯 HUNTER PRO V132 (評分 70+ 強勢監控)</h1>
+    <h1>🎯 HUNTER PRO V132 (啟動模式過濾)</h1>
     
     <div class="dashboard">
-        <div id="clock" style="font-size: 1.2em; color: #f2a900;">載入中...</div>
+        <div id="clock" style="font-size: 1.1em; color: #f2a900;">--:--:--</div>
+        
+        <div class="filter-ctrl">
+            <span>顯示糾結幣</span>
+            <label class="switch">
+                <input type="checkbox" id="showTangle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
         <div class="search-area">
-            🔍 個別幣種查詢：
-            <input type="text" id="symbolInp" placeholder="例如: SOL">
+            🔍 查分：<input type="text" id="symbolInp" placeholder="SOL">
             <button onclick="manualCheck()" style="cursor:pointer">查詢</button>
         </div>
-        <div id="scanner-status">正在過濾 70 分以上強勢幣...</div>
+        
+        <div id="scanner-status" style="font-size: 12px; color: #aaa;">監控中 (70分門檻)...</div>
     </div>
 
     <table id="hunter-table">
         <thead>
             <tr>
                 <th>幣種</th>
-                <th>當前狀態</th>
+                <th>狀態</th>
                 <th>評分</th>
                 <th>價格</th>
                 <th>24H 漲跌</th>
                 <th>最高/最低</th>
-                <th>資費 (Funding)</th>
-                <th>糾結度 %</th>
+                <th>資費</th>
+                <th>糾結度%</th>
                 <th>成交額</th>
             </tr>
         </thead>
@@ -57,10 +74,12 @@
 
 <script>
     const TANGLE_LIMIT = 1.5; 
-    const MIN_SCORE = 70; // 修改：只顯示 70 分以上的幣
+    const MIN_SCORE = 70; 
 
     async function updateData() {
         document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+        const showTangle = document.getElementById('showTangle').checked;
+
         try {
             const [tRes, fRes] = await Promise.all([
                 fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
@@ -69,22 +88,17 @@
             const tData = await tRes.json();
             const fData = await fRes.json();
             
-            // 初步過濾成交量
             const potentialSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 8000000);
-
             const body = document.getElementById('hunter-body');
             let newRows = "";
 
             for (let item of potentialSymbols) {
                 const s = item.symbol;
-                
-                // 1. 先算分，沒過 70 分的直接跳過，不跑均線運算以節省資源
                 const range = ((parseFloat(item.highPrice) - parseFloat(item.lowPrice)) / parseFloat(item.lowPrice)) * 100;
                 let score = Math.min(100, Math.round(range * 8 + 35));
                 
                 if (score < MIN_SCORE) continue; 
 
-                // 2. 分數夠了，才抓 K 線算均線
                 const kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=5m&limit=100`);
                 const k = await kRes.json();
                 if (k.length < 99) continue;
@@ -97,12 +111,15 @@
                 const ma99 = getMA(closePrices, 99);
                 const tangleGap = ((Math.max(ma7,ma25,ma99) - Math.min(ma7,ma25,ma99)) / Math.min(ma7,ma25,ma99) * 100).toFixed(2);
 
-                let statusHtml = "-";
-                if (lastClose > ma7 && lastClose > ma25 && lastClose > ma99 && lastClose > lastOpen && tangleGap <= TANGLE_LIMIT) {
-                    statusHtml = '<span class="status-launch">🚀 啟動突破</span>';
-                } else if (tangleGap <= TANGLE_LIMIT) {
-                    statusHtml = '<span class="status-tangle">⏳ 均線糾結</span>';
-                }
+                let isLaunched = (lastClose > ma7 && lastClose > ma25 && lastClose > ma99 && lastClose > lastOpen && tangleGap <= TANGLE_LIMIT);
+                let isTangled = (tangleGap <= TANGLE_LIMIT);
+
+                // 過濾邏輯：如果關閉開關，且該幣不是「啟動」狀態，就跳過不顯示
+                if (!showTangle && !isLaunched) continue;
+                // 如果連糾結都稱不上，也跳過
+                if (!isTangled && !isLaunched) continue;
+
+                let statusHtml = isLaunched ? '<span class="status-launch">🚀 啟動突破</span>' : '<span class="status-tangle">⏳ 均線糾結</span>';
 
                 const fund = fData.find(f => f.symbol === s);
                 const fundRate = fund ? (parseFloat(fund.lastFundingRate) * 100).toFixed(4) : "0.0000";
