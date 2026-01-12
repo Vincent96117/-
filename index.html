@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V158 | 評分全顯版</title>
+    <title>HUNTER V159 | 功能全齊版</title>
     <style>
         body { background: #0b0e11; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #181a20; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #333; }
@@ -18,6 +18,8 @@
         .score-detail { font-size: 10px; color: #848e9c; margin-top: 4px; display: flex; gap: 3px; justify-content: center; }
         .high-impact { color: #f0b90b; font-weight: bold; }
         .btn { border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-del { background: transparent; color: #666; font-size: 18px; cursor: pointer; border: none; transition: 0.2s; }
+        .btn-del:hover { color: #f6465d; }
         .tp-group { font-size: 11px; text-align: left; display: inline-block; margin-top: 4px;}
         .tp-1d { color: #00c087; }
         .tp-5d { color: #f0b90b; }
@@ -26,8 +28,8 @@
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 24px; font-weight: bold; color: #f0b90b;">🎯 V158 獵人雷達</span>
-            <span style="font-size: 12px; color: #848e9c; margin-left: 10px;">(算分細節全顯版)</span>
+            <span style="font-size: 24px; font-weight: bold; color: #f0b90b;">🎯 V159 獵人雷達</span>
+            <span style="font-size: 12px; color: #848e9c; margin-left: 10px;">(刪除功能回歸)</span>
         </div>
         <div class="controls">
             <input type="text" id="searchInput" placeholder="搜尋幣種..." oninput="renderTable()">
@@ -45,6 +47,7 @@
                 <th>技術總分 (波|糾|量|勢)</th>
                 <th>資費 (±0.05優先)</th>
                 <th>24H 漲跌</th>
+                <th>操作</th>
             </tr>
         </thead>
         <tbody id="list-body"></tbody>
@@ -52,6 +55,7 @@
 
 <script>
     let isMonitoring = false, isSoundOn = true, allData = [], timer = null;
+    let blackList = new Set(); // 儲存被刪除的幣種
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function toggleSound() { isSoundOn = !isSoundOn; document.getElementById('btn-sound').innerText = isSoundOn ? "🔊 聲音: 開" : "🔇 聲音: 關"; }
@@ -62,6 +66,11 @@
         document.getElementById('btn-toggle').innerText = isMonitoring ? "🛑 停止監控" : "📡 啟動掃描";
         document.getElementById('btn-toggle').style.background = isMonitoring ? "#f6465d" : "#f0b90b";
         if(isMonitoring) { startScan(); timer = setInterval(startScan, 15000); } else { clearInterval(timer); }
+    }
+
+    function removeSymbol(s) {
+        blackList.add(s);
+        renderTable();
     }
 
     async function getSymbolData(s) {
@@ -78,15 +87,14 @@
             const atr1d = hRanges.slice(-25, -1).reduce((a,b)=>a+b,0) / 24;
             const atr5d = hRanges.slice(-121, -1).reduce((a,b)=>a+b,0) / 120;
 
-            // 算分細節
             const hCloses = hK.map(k=>parseFloat(k[4]));
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7;
             const ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
             
-            const s1 = Math.min(25, (hRanges[hRanges.length-1]/atr1d/1.8)*25); // 波
-            const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0; // 糾
-            const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5); // 量
-            const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0; // 勢
+            const s1 = Math.min(25, (hRanges[hRanges.length-1]/atr1d/1.8)*25);
+            const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
+            const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5);
+            const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
 
             const curVol = parseFloat(mK[mK.length-1][5]);
             const avgVol = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / mK.length;
@@ -109,14 +117,18 @@
         const tData = await tRes.json();
         let baseSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 30000000).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 40);
         let results = [];
-        for (let d of baseSymbols) { const res = await getSymbolData(d.symbol); if (res && res.totalScore > 35) results.push(res); }
+        for (let d of baseSymbols) { 
+            if (blackList.has(d.symbol)) continue; // 過濾掉黑名單
+            const res = await getSymbolData(d.symbol); 
+            if (res && res.totalScore > 35) results.push(res); 
+        }
         allData = results.sort((a,b) => (a.isTangling === b.isTangling) ? (b.totalScore - a.totalScore) : (a.isTangling ? -1 : 1));
         renderTable();
     }
 
     function renderTable() {
         const search = document.getElementById('searchInput').value.toUpperCase();
-        const filtered = allData.filter(d => d.s.includes(search));
+        const filtered = allData.filter(d => d.s.includes(search) && !blackList.has(d.s));
         document.getElementById('list-body').innerHTML = filtered.map(r => `
             <tr class="${r.isTangling ? 'row-tangling' : ''}">
                 <td style="color:${r.isTangling ? '#00c087' : '#848e9c'}">${r.isTangling ? '💎 糾結' : '📊 趨勢'}</td>
@@ -138,6 +150,7 @@
                 </td>
                 <td style="color:${r.isTangling ? '#00c087' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
                 <td style="color:${parseFloat(r.change)>=0?'#00c087':'#f6465d'}">${r.change}%</td>
+                <td><button class="btn-del" onclick="removeSymbol('${r.s}')">❌</button></td>
             </tr>
         `).join('');
     }
