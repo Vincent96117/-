@@ -2,52 +2,42 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V158 邏輯修正版</title>
+    <title>HUNTER V153 | 聲光加速版</title>
     <style>
-        body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 12px; }
+        body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
-        .control-panel { background: #252525; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #444; }
-        input { background: #333; border: 1px solid #555; color: #fff; padding: 8px; border-radius: 4px; outline: none; width: 180px; }
-        #diag-box { background: #1a1a1a; border: 2px solid #f2a900; padding: 15px; border-radius: 5px; display: none; margin-top: 10px; line-height: 1.6; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #333; padding: 10px; text-align: center; }
+        th, td { border: 1px solid #333; padding: 12px; text-align: center; }
         th { background: #252525; color: #f2a900; }
-        .row-highlight { background: rgba(242, 169, 0, 0.1) !important; border-left: 4px solid #f2a900; }
-        .tp-now { color: #00ffcc; font-weight: bold; border: 1px solid #00ffcc; padding: 1px 4px; border-radius: 3px; font-size: 10px; }
-        .tp-5d { color: #f2a900; font-weight: bold; border: 1px solid #f2a900; padding: 1px 4px; border-radius: 3px; font-size: 10px; margin-left: 3px; }
-        .score-box { background: #444; color: #fff; padding: 4px 10px; border-radius: 3px; font-weight: bold; font-size: 14px; display: inline-block; }
-        .score-100 { background: linear-gradient(45deg, #f2a900, #ff5500); }
-        .sub-score { font-size: 10px; color: #aaa; margin-top: 4px; display: block; }
-        .btn { background: #f2a900; color: #000; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .btn-del { background: #ff4444; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        .row-tangling { background: rgba(0, 255, 204, 0.1) !important; border-left: 4px solid #00ffcc; }
+        .lv-high { color: #ff4444; font-weight: bold; text-shadow: 0 0 8px #ff4444; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        .score-box { background: #444; color: #fff; padding: 4px 10px; border-radius: 3px; font-weight: bold; font-size: 15px; }
+        .btn { border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-left: 10px; }
+        #btn-toggle { background: #f2a900; color: #000; }
+        #btn-sound { background: #444; color: #fff; }
     </style>
 </head>
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 HUNTER PRO 技術雷達 (V158)</span>
-            <span id="update-time" style="margin-left: 15px; color: #888;"></span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V153 獵人雷達 (聲光報警版)</span>
         </div>
-        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動掃描</button>
-    </div>
-
-    <div class="control-panel">
-        <input type="text" id="search-input" placeholder="打幣名(如 SOL, PEPE)">
-        <button class="btn" onclick="diagnoseSymbol()">🔍 強力診斷</button>
-        <button class="btn" style="background:#555; color:#fff" onclick="clearBlacklist()">重設名單</button>
-        <div id="diag-box"></div>
+        <div>
+            <button id="btn-sound" class="btn" onclick="toggleSound()">🔊 聲音: 開</button>
+            <button id="btn-toggle" class="btn" onclick="toggleMonitor()">📡 啟動監控</button>
+        </div>
     </div>
 
     <table>
         <thead>
             <tr>
                 <th>類型</th>
-                <th>幣種 / 建議停利 (現 / 5D)</th>
-                <th>技術總分 (波/糾/量/突)</th>
-                <th>資費監控 (±0.05)</th>
-                <th>指標數據 (波/距高)</th>
+                <th>幣種與區間</th>
+                <th>🚀 加速等級</th>
+                <th>技術總分</th>
+                <th>資費 (±0.05優先)</th>
                 <th>24H 漲跌</th>
-                <th>管理</th>
             </tr>
         </thead>
         <tbody id="list-body"></tbody>
@@ -55,9 +45,37 @@
 
 <script>
     let isMonitoring = false;
+    let isSoundOn = true;
     let timer = null;
-    let userBlacklist = new Set();
-    const EXCLUDE_LIST = ['BTCUSDT', 'ETHUSDT', 'USDCUSDT', 'FDUSDUSDT', 'BUSDUSDT', 'DAIUSDT'];
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function toggleSound() {
+        isSoundOn = !isSoundOn;
+        document.getElementById('btn-sound').innerText = isSoundOn ? "🔊 聲音: 開" : "🔇 聲音: 關";
+    }
+
+    // 嗶嗶聲產生器
+    function playBeep() {
+        if (!isSoundOn) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 高音
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+        // 連響第二聲
+        setTimeout(() => {
+            const osc2 = audioCtx.createOscillator();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(1200, audioCtx.currentTime);
+            osc2.connect(gain);
+            osc2.start();
+            osc2.stop(audioCtx.currentTime + 0.1);
+        }, 150);
+    }
 
     function toggleMonitor() {
         isMonitoring = !isMonitoring;
@@ -67,113 +85,78 @@
         else { clearInterval(timer); }
     }
 
-    const getMA = (arr, p) => arr.length < p ? 0 : arr.slice(-p).reduce((a, b) => a + b, 0) / p;
-
     async function getSymbolData(s) {
         try {
-            const [tData, fRes, hK] = await Promise.all([
+            const [tData, fRes, hK, mK] = await Promise.all([
                 fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json()),
                 fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${s}`).then(r=>r.json()),
-                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=121`).then(r=>r.json())
+                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json()),
+                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=60`).then(r=>r.json())
             ]);
-            if(!tData.symbol) return null;
             
-            const now = parseFloat(hK[hK.length-1][4]);
-            const hCloses = hK.map(k=>parseFloat(k[4])), ma7 = getMA(hCloses, 7), ma25 = getMA(hCloses, 25);
-            const funding = parseFloat(fRes.lastFundingRate * 100);
-
+            const now = parseFloat(hK[24][4]);
+            const hCloses = hK.map(k=>parseFloat(k[4]));
+            const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7;
+            const ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
+            
+            // 技術總分 (不變)
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
-            const avgR24 = (ranges.slice(-25, -1).reduce((a,b)=>a+b,0) / 24);
-            const tpNow = ((avgR24 / now) * 100 * 2.8).toFixed(1);
-            const avgR5D = (ranges.slice(0, 120).reduce((a,b)=>a+b,0) / 120);
-            const tp5D = ((avgR5D / now) * 100 * 2.8).toFixed(1);
+            const avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
+            const score1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
+            const score2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
+            const score3 = Math.min(25, (parseFloat(tData.quoteVolume)/45000000)*12.5);
+            const score4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
+            
+            // 加速等級 (1m)
+            const currentVol1m = parseFloat(mK[59][5]);
+            const avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0) / 60;
+            const vRatio = currentVol1m / avgVol1m;
+            let thrustLv = 1;
+            if(vRatio > 8.0) thrustLv = 10;
+            else if(vRatio > 5.0) thrustLv = 8;
+            else if(vRatio > 3.0) thrustLv = 7;
+            else if(vRatio > 2.0) thrustLv = 6;
+            else if(vRatio > 1.0) thrustLv = 3;
 
-            const vRatio = (parseFloat(hK[hK.length-1][2]) - parseFloat(hK[hK.length-1][3])) / avgR24;
-            const vScore = Math.min(25, (vRatio / 1.8) * 25); 
-            const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
-            const tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0; 
-            const qScore = Math.min(25, (parseFloat(tData.quoteVolume) / 40000000) * 12.5); 
-            const recentH = Math.max(...hK.slice(-4).map(k=>parseFloat(k[2])));
-            const distToH = Math.abs(now - recentH) / recentH * 100;
-            const hScore = (distToH <= 2) ? 25 : 0; 
+            const funding = parseFloat(fRes.lastFundingRate * 100);
+            const isTangling = (funding >= -0.05 && funding <= 0.05);
+
+            // 嗶嗶叫判斷：加速LV 8以上 且 資費在範圍內
+            if (isMonitoring && thrustLv >= 8 && isTangling) {
+                playBeep();
+            }
 
             return { 
-                s, totalScore: Math.round(vScore + tangleScore + qScore + hScore), 
-                vScore: vScore.toFixed(0), tangleScore: tangleScore.toFixed(0), 
-                qScore: qScore.toFixed(0), hScore: hScore.toFixed(0), 
-                funding, vRatio, distToH, tpNow, tp5D,
-                change: tData.priceChangePercent, 
-                isBull: (ma7 > ma25), // 修正：移除收紅限制，僅保留趨勢過濾
-                isFocus: (funding >= -0.05 && funding <= 0.05)
+                s, totalScore: Math.round(score1+score2+score3+score4), thrustLv, vRatio: vRatio.toFixed(1),
+                tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1),
+                funding, change: tData.priceChangePercent, isTangling
             };
         } catch(e) { return null; }
     }
 
-    async function diagnoseSymbol() {
-        let s = document.getElementById('search-input').value.trim().toUpperCase();
-        if(!s) return; if(!s.endsWith('USDT')) s += 'USDT';
-        const box = document.getElementById('diag-box');
-        box.style.display = 'block'; box.innerHTML = "⏳ 搜尋中...";
-        const d = await getSymbolData(s);
-        if(!d) { box.innerHTML = `<span style="color:#ff4444">❌ 找不到 [${s}]</span>`; return; }
-        box.innerHTML = `
-            <div style="font-weight:bold; color:#f2a900;">📊 ${s} | <span class="tp-now">現: ${d.tpNow}%</span> <span class="tp-5d">5D: ${d.tp5D}%</span></div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:11px; margin-top:5px; background: #222; padding: 10px; border-radius: 5px;">
-                <div>🌪️ 波動：${d.vScore}</div><div>🧶 糾結：${d.tangleScore}</div>
-                <div>📈 量能：${d.qScore}</div><div>🎯 突破：${d.hScore}</div>
-            </div>
-            <div style="font-weight:bold; text-align:right;">技術總分：${d.totalScore}</div>
-        `;
-    }
-
     async function startScan() {
-        try {
-            const infoRes = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
-            const infoData = await infoRes.json();
-            const perpetualSymbols = infoData.symbols
-                .filter(s => s.contractType === 'PERPETUAL' && s.status === 'TRADING' && s.quoteAsset === 'USDT')
-                .map(s => s.symbol);
+        const tRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+        const tData = await tRes.json();
+        let baseSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 30000000).slice(0, 30);
+        
+        let results = [];
+        for (let d of baseSymbols) {
+            const res = await getSymbolData(d.symbol);
+            if (res && res.totalScore > 35) results.push(res);
+        }
+        results.sort((a, b) => (a.isTangling === b.isTangling) ? (b.totalScore - a.totalScore) : (a.isTangling ? -1 : 1));
 
-            const tRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-            const tData = await tRes.json();
-            
-            let baseSymbols = tData.filter(d => 
-                perpetualSymbols.includes(d.symbol) && !EXCLUDE_LIST.includes(d.symbol) && 
-                !userBlacklist.has(d.symbol) && parseFloat(d.quoteVolume) > 20000000 && parseFloat(d.priceChangePercent) > 0
-            ).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 40);
-
-            let results = [];
-            for (let d of baseSymbols) {
-                await new Promise(r => setTimeout(r, 25));
-                const res = await getSymbolData(d.symbol);
-                if (res && res.isBull && res.totalScore > 30) results.push(res);
-            }
-
-            results.sort((a, b) => (a.isFocus === b.isFocus) ? (b.totalScore - a.totalScore) : (a.isFocus ? -1 : 1));
-
-            document.getElementById('list-body').innerHTML = results.map(r => `
-                <tr class="${r.isFocus ? 'row-highlight' : ''}">
-                    <td style="font-weight:bold; color:${r.isFocus ? '#f2a900' : '#eee'}">${r.isFocus ? '🎯 獵人鎖定' : '📊 趨勢追蹤'}</td>
-                    <td style="font-weight:bold;">
-                        ${r.s.replace('USDT','')} 
-                        <span class="tp-now">${r.tpNow}%</span><span class="tp-5d">${r.tp5D}%</span>
-                    </td>
-                    <td>
-                        <span class="score-box ${r.totalScore >= 80 ? 'score-100' : ''}">${r.totalScore}</span>
-                        <span class="sub-score">${r.vScore}/${r.tangleScore}/${r.qScore}/${r.hScore}</span>
-                    </td>
-                    <td style="color:${r.isFocus ? '#00ffcc' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
-                    <td style="color:#aaa;">波:${r.vRatio.toFixed(1)}x | 距高:${r.distToH.toFixed(1)}%</td>
-                    <td style="color:#00ffcc">${r.change}%</td>
-                    <td><button class="btn-del" onclick="deleteSymbol('${r.s.replace('USDT','')}')">❌</button></td>
-                </tr>
-            `).join('');
-            document.getElementById('update-time').innerText = "刷新: " + new Date().toLocaleTimeString();
-        } catch (e) {}
+        document.getElementById('list-body').innerHTML = results.map(r => `
+            <tr class="${r.isTangling ? 'row-tangling' : ''}">
+                <td>${r.isTangling ? '💎 糾結' : '📊 趨勢'}</td>
+                <td style="font-weight:bold;">${r.s.replace('USDT','')}<span style="color:#00ffcc;font-size:11px;margin-left:5px;">🎯${r.tp}%/-${r.sl}%</span></td>
+                <td class="${r.thrustLv >= 8 ? 'lv-high' : 'lv-mid'}">LV ${r.thrustLv} (${r.vRatio}x)</td>
+                <td><span class="score-box">${r.totalScore}</span></td>
+                <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}">${r.funding.toFixed(4)}%</td>
+                <td>${r.change}%</td>
+            </tr>
+        `).join('');
     }
-
-    function deleteSymbol(s) { userBlacklist.add(s + "USDT"); startScan(); }
-    function clearBlacklist() { userBlacklist.clear(); startScan(); }
 </script>
 </body>
 </html>
