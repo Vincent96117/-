@@ -2,180 +2,138 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO V133 | 核心量能啟動監控</title>
+    <title>HUNTER PRO | V134 糾結突破監控</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
-        .dashboard { background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; justify-content: space-between; }
-        .dashboard-left { display: flex; align-items: center; gap: 20px; }
-        .filter-ctrl { background: #252525; padding: 8px 15px; border-radius: 6px; border: 1px solid #f2a900; display: flex; align-items: center; gap: 10px; font-weight: bold; }
-        .search-area { background: #252525; padding: 8px 15px; border-radius: 6px; border: 1px solid #444; }
-        input[type="text"] { background: #333; color: #fff; border: 1px solid #555; padding: 5px; border-radius: 4px; width: 80px; }
-        button { background: #444; color: #fff; border: 1px solid #666; padding: 5px 12px; cursor: pointer; border-radius: 4px; }
-        button:hover { background: #555; }
-
-        /* 滑動開關 UI */
-        .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 20px; }
-        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #f2a900; }
-        input:checked + .slider:before { transform: translateX(16px); }
-
+        .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
+        .status-tag { padding: 5px 12px; border-radius: 4px; font-weight: bold; background: #333; }
+        .on { background: #00ffcc; color: #000; }
+        
         table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #333; padding: 8px; text-align: center; }
-        th { background: #252525; color: #f2a900; position: sticky; top: 0; z-index: 10; }
+        th, td { border: 1px solid #333; padding: 12px; text-align: center; }
+        th { background: #252525; color: #f2a900; position: sticky; top: 0; }
+
+        /* 糾結幣特別樣式 */
+        .row-tangling { background: rgba(255, 68, 68, 0.2) !important; border: 2px solid #ff4444 !important; }
+        .tangling-tag { background: #ff4444; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+
+        .score-box { background: #444; color: #fff; padding: 4px 10px; border-radius: 3px; font-weight: bold; font-size: 15px; }
+        .score-high { background: linear-gradient(45deg, #f2a900, #ffcc00); color: #000; box-shadow: 0 0 10px #f2a900; }
         
-        /* 狀態樣式 */
-        .status-launch { background: #d97706; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold; animation: blink 0.8s infinite; }
-        .status-tangle { color: #888; border: 1px solid #444; padding: 2px 6px; border-radius: 3px; }
-        .funding-alert { background: #ff0000; color: #fff; font-weight: bold; padding: 2px 5px; border-radius: 3px; }
-        .score-box { background: #444; color: #fff; padding: 3px 8px; border-radius: 3px; font-weight: bold; border: 1px solid #555; }
-        .score-vip { background: linear-gradient(45deg, #f2a900, #ffcc00) !important; color: #000 !important; box-shadow: 0 0 10px rgba(242,169,0,0.5); border: none !important; }
-        
-        .up { color: #00ffcc; } .down { color: #ff6666; }
-        .row-vip { background-color: rgba(242, 169, 0, 0.08) !important; }
-        @keyframes blink { 50% { opacity: 0.4; } }
+        .btn { background: #f2a900; color: #000; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn:hover { transform: scale(1.05); }
     </style>
 </head>
 <body>
-    <h1>🎯 HUNTER PRO V133</h1>
-    
-    <div class="dashboard">
-        <div class="dashboard-left">
-            <div id="clock" style="font-size: 1.1em; color: #f2a900; min-width: 80px;">00:00:00</div>
-            <div class="filter-ctrl">
-                <span>顯示糾結幣</span>
-                <label class="switch">
-                    <input type="checkbox" id="showTangle" checked>
-                    <span class="slider"></span>
-                </label>
-            </div>
+    <div class="header">
+        <div>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 V134 糾結突破監控</span>
+            <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
-
-        <div class="search-area">
-            🔍 快速查分：<input type="text" id="symbolInp" placeholder="例如: SOL">
-            <button onclick="manualCheck()">診斷</button>
-        </div>
+        <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動自動監控</button>
     </div>
 
-    <table id="hunter-table">
+    <table>
         <thead>
             <tr>
+                <th>類型</th>
                 <th>幣種</th>
-                <th>狀態</th>
-                <th>量能評分</th>
+                <th>評分 (依此排序)</th>
+                <th>資費 (±0.05 標記)</th>
                 <th>當前價格</th>
                 <th>24H 漲跌</th>
-                <th>最高 / 最低</th>
-                <th>資費 (Funding)</th>
-                <th>糾結寬度%</th>
-                <th>24H 成交額</th>
             </tr>
         </thead>
-        <tbody id="hunter-body"></tbody>
+        <tbody id="list-body">
+            <tr><td colspan="6" style="padding: 50px; color: #666;">點擊按鈕開始掃描全市場數據...</td></tr>
+        </tbody>
     </table>
 
-    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
-
 <script>
-    const TANGLE_LIMIT = 1.5; 
-    const MIN_SCORE = 70; 
+    let isMonitoring = false;
+    let timer = null;
 
-    async function updateData() {
-        document.getElementById('clock').innerText = new Date().toLocaleTimeString();
-        const showTangle = document.getElementById('showTangle').checked;
+    function toggleMonitor() {
+        isMonitoring = !isMonitoring;
+        const btn = document.getElementById('btn-toggle');
+        if(isMonitoring) {
+            btn.innerText = "🛑 停止監控";
+            btn.style.background = "#ff4444";
+            btn.style.color = "#fff";
+            startScan();
+            timer = setInterval(startScan, 5000); // 每 5 秒刷新一次
+        } else {
+            btn.innerText = "📡 啟動自動監控";
+            btn.style.background = "#f2a900";
+            btn.style.color = "#000";
+            clearInterval(timer);
+        }
+    }
 
+    async function startScan() {
+        const body = document.getElementById('list-body');
+        document.getElementById('update-time').innerText = "最後更新: " + new Date().toLocaleTimeString();
+        
         try {
+            // 1. 抓取 Ticker 和 Funding Rate
             const [tRes, fRes] = await Promise.all([
                 fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
                 fetch('https://fapi.binance.com/fapi/v1/premiumIndex')
             ]);
             const tData = await tRes.json();
             const fData = await fRes.json();
-            
-            // 過濾成交額 > 800M 且為 USDT 合約
-            const potentialSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 8000000);
-            const body = document.getElementById('hunter-body');
-            let htmlRows = "";
 
-            for (let item of potentialSymbols) {
-                const s = item.symbol;
+            // 整理資費對照表
+            const fundingMap = {};
+            fData.forEach(f => { fundingMap[f.symbol] = parseFloat(f.lastFundingRate * 100).toFixed(4); });
+
+            let results = [];
+
+            // 2. 計算評分
+            tData.filter(d => d.symbol.endsWith('USDT')).forEach(d => {
+                const s = d.symbol;
+                const high = parseFloat(d.highPrice), low = parseFloat(d.lowPrice), vol = parseFloat(d.quoteVolume);
+                const funding = parseFloat(fundingMap[s] || 0);
                 
-                // 1. 核心評分計算
-                const range = ((parseFloat(item.highPrice) - parseFloat(item.lowPrice)) / parseFloat(item.lowPrice)) * 100;
-                let score = Math.min(100, Math.round(range * 8 + 35));
-                if (score < MIN_SCORE) continue; 
+                let range = ((high - low) / low) * 100;
+                let score = (vol > 8000000) ? Math.min(100, Math.round(range * 8 + 35)) : 0;
 
-                // 2. 抓取 5m K線算 7/25/99 均線
-                const kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=5m&limit=100`);
-                const k = await kRes.json();
-                if (k.length < 99) continue;
+                // 判斷是否為「糾結幣」: 資費在 -0.05 到 +0.05 之間
+                const isTangling = (funding >= -0.05 && funding <= 0.05);
 
-                const closePrices = k.map(x => parseFloat(x[4]));
-                const lastClose = closePrices[closePrices.length - 1];
-                const lastOpen = parseFloat(k[k.length-1][1]);
-                
-                const ma7 = getMA(closePrices, 7);
-                const ma25 = getMA(closePrices, 25);
-                const ma99 = getMA(closePrices, 99);
-                
-                const maxMA = Math.max(ma7, ma25, ma99);
-                const minMA = Math.min(ma7, ma25, ma99);
-                const tangleGap = ((maxMA - minMA) / minMA * 100).toFixed(2);
+                if (score >= 45) {
+                    results.push({
+                        symbol: s.replace('USDT',''),
+                        score: score,
+                        funding: funding,
+                        isTangling: isTangling,
+                        price: parseFloat(d.lastPrice),
+                        change: d.priceChangePercent
+                    });
+                }
+            });
 
-                const isLaunched = (lastClose > ma7 && lastClose > ma25 && lastClose > ma99 && lastClose > lastOpen && tangleGap <= TANGLE_LIMIT);
-                const isTangled = (tangleGap <= TANGLE_LIMIT);
+            // 3. 排序邏輯：糾結幣置頂 > 分數高到低
+            results.sort((a, b) => {
+                if (a.isTangling && !b.isTangling) return -1;
+                if (!a.isTangling && b.isTangling) return 1;
+                return b.score - a.score;
+            });
 
-                // 根據開關邏輯過濾
-                if (!showTangle && !isLaunched) continue;
-                if (!isTangled && !isLaunched) continue;
+            // 4. 渲染表格
+            body.innerHTML = results.map(r => `
+                <tr class="${r.isTangling ? 'row-tangling' : ''}">
+                    <td>${r.isTangling ? '<span class="tangling-tag">糾結突破</span>' : '普通強勢'}</td>
+                    <td style="font-weight:bold; font-size:16px;">${r.symbol}</td>
+                    <td><span class="score-box ${r.score >= 80 ? 'score-high' : ''}">${r.score}</span></td>
+                    <td style="color: ${r.isTangling ? '#ff4444' : '#eee'}; font-weight: bold;">${r.funding}%</td>
+                    <td>${r.price}</td>
+                    <td style="color: ${parseFloat(r.change) >= 0 ? '#00ffcc' : '#ff6666'}">${r.change}%</td>
+                </tr>
+            `).join('');
 
-                // 3. 獲取資費與其他數據
-                const fund = fData.find(f => f.symbol === s);
-                const fundRate = fund ? (parseFloat(fund.lastFundingRate) * 100).toFixed(4) : "0.0000";
-                const fundClass = Math.abs(parseFloat(fundRate)) >= 0.05 ? 'funding-alert' : '';
-                const change = parseFloat(item.priceChangePercent);
-
-                let statusHtml = isLaunched ? '<span class="status-launch">🚀 啟動突破</span>' : '<span class="status-tangle">⏳ 均線糾結</span>';
-                if (isLaunched) playAlertOnce(s);
-
-                htmlRows += `
-                    <tr class="${score >= 80 ? 'row-vip' : ''}">
-                        <td style="font-weight:bold">${s.replace('USDT','')}</td>
-                        <td>${statusHtml}</td>
-                        <td><span class="score-box ${score >= 80 ? 'score-vip' : ''}">${score}</span></td>
-                        <td style="font-weight:bold; color:#f2a900">${lastClose}</td>
-                        <td class="${change >= 0 ? 'up' : 'down'}">${change}%</td>
-                        <td style="font-size:11px; color:#aaa">${item.highPrice} / ${item.lowPrice}</td>
-                        <td><span class="${fundClass}">${fundRate}%</span></td>
-                        <td class="${tangleGap <= 1 ? 'up' : ''}">${tangleGap}%</td>
-                        <td>${(item.quoteVolume/1000000).toFixed(2)}M</td>
-                    </tr>
-                `;
-            }
-            body.innerHTML = htmlRows;
-        } catch (e) { console.error("Update Error:", e); }
+        } catch (e) { console.error("數據抓取失敗", e); }
     }
-
-    function getMA(prices, period) {
-        return prices.slice(-period).reduce((a, b) => a + b) / period;
-    }
-
-    let lastAlerted = "";
-    function playAlertOnce(s) {
-        if (lastAlerted !== s) {
-            document.getElementById('alertSound').play().catch(()=>{});
-            lastAlerted = s;
-        }
-    }
-
-    function manualCheck() {
-        const s = document.getElementById('symbolInp').value.toUpperCase();
-        if(s) window.open(`https://www.binance.com/zh-TC/futures/${s.includes('USDT')?s:s+'USDT'}`);
-    }
-
-    setInterval(updateData, 5000);
-    updateData();
 </script>
 </body>
 </html>
