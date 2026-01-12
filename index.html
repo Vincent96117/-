@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V150 純技術導航版</title>
+    <title>HUNTER PRO | V153 獵人鎖定版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
@@ -23,7 +23,7 @@
 <body>
     <div class="header">
         <div>
-            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 HUNTER PRO 技術雷達 (V150)</span>
+            <span style="font-size: 20px; font-weight: bold; color: #f2a900;">🎯 HUNTER PRO 技術雷達 (V153)</span>
             <span id="update-time" style="margin-left: 15px; color: #888;"></span>
         </div>
         <button class="btn" onclick="toggleMonitor()" id="btn-toggle">📡 啟動掃描</button>
@@ -40,9 +40,9 @@
         <thead>
             <tr>
                 <th>類型</th>
-                <th>幣種與科學停利</th>
-                <th>技術總分</th>
-                <th>數據標記</th>
+                <th>幣種與建議停利</th>
+                <th>技術總分 (100)</th>
+                <th>資費監控 (±0.05)</th>
                 <th>指標拆解 (波/距高)</th>
                 <th>24H 漲跌</th>
                 <th>管理</th>
@@ -79,19 +79,21 @@
             const hCloses = hK.map(k=>parseFloat(k[4])), ma7 = getMA(hCloses, 7), ma25 = getMA(hCloses, 25);
             const funding = parseFloat(fRes.lastFundingRate * 100);
 
+            // 停利計算
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
             const avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
             const atrPercent = (avgR / now) * 100;
             const suggestedTP = (atrPercent * 2.8).toFixed(1); 
 
+            // 分數拆解
             const vRatio = (parseFloat(hK[24][2]) - parseFloat(hK[24][3])) / avgR;
-            const vScore = Math.min(25, (vRatio / 1.8) * 25);
+            const vScore = Math.min(25, (vRatio / 1.8) * 25); 
             const hDiff = Math.abs(ma7 - ma25) / ma25 * 100;
-            const tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0;
-            const qScore = Math.min(25, (parseFloat(tData.quoteVolume) / 40000000) * 12.5);
+            const tangleScore = (hDiff < 3) ? (25 * (1 - hDiff/3)) : 0; 
+            const qScore = Math.min(25, (parseFloat(tData.quoteVolume) / 40000000) * 12.5); 
             const recentH = Math.max(...hK.slice(-4).map(k=>parseFloat(k[2])));
             const distToH = Math.abs(now - recentH) / recentH * 100;
-            const hScore = (distToH <= 2) ? 25 : 0;
+            const hScore = (distToH <= 2) ? 25 : 0; 
 
             const isFocus = (funding >= -0.05 && funding <= 0.05);
 
@@ -100,7 +102,7 @@
                 vScore, tangleScore, qScore, hScore, 
                 funding, vRatio, distToH, suggestedTP,
                 change: tData.priceChangePercent, 
-                isBull: (now >= open && now > ma7 && ma7 > ma25),
+                isBull: (now >= open && ma7 > ma25),
                 isFocus
             };
         } catch(e) { return null; }
@@ -115,12 +117,13 @@
         if(!d) { box.innerHTML = "找不到幣種"; return; }
         box.innerHTML = `
             <div style="font-weight:bold; color:#f2a900;">📊 ${s} 技術診斷 | <span style="color:#00ffcc">建議停利: ${d.suggestedTP}%</span></div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:12px; margin-top:5px;">
-                <div>🌪️ 波動：${d.vScore.toFixed(1)} / 25</div>
-                <div>🧶 均線：${d.tangleScore.toFixed(1)} / 25</div>
-                <div>📈 量能：${d.qScore.toFixed(1)} / 25</div>
-                <div>🎯 突破：${d.hScore} / 25</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; font-size:12px; margin-top:5px; background: #222; padding: 10px; border-radius: 5px;">
+                <div>🌪️ 波動爆發：${d.vScore.toFixed(1)} / 25</div>
+                <div>🧶 均線糾結：${d.tangleScore.toFixed(1)} / 25</div>
+                <div>📈 量能貢獻：${d.qScore.toFixed(1)} / 25</div>
+                <div>🎯 突破距離：${d.hScore.toFixed(1)} / 25</div>
             </div>
+            <div style="font-weight:bold; color:#fff; text-align:right; margin-top:5px;">總技術分：${d.totalScore}</div>
         `;
     }
 
@@ -130,14 +133,14 @@
             const tData = await tRes.json();
             let baseSymbols = tData.filter(d => 
                 d.symbol.endsWith('USDT') && !EXCLUDE_LIST.includes(d.symbol) && 
-                !userBlacklist.has(d.symbol) && parseFloat(d.quoteVolume) > 30000000 && parseFloat(d.priceChangePercent) > 0
-            ).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 30);
+                !userBlacklist.has(d.symbol) && parseFloat(d.quoteVolume) > 20000000 && parseFloat(d.priceChangePercent) > 0
+            ).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 40);
 
             let results = [];
             for (let d of baseSymbols) {
-                await new Promise(r => setTimeout(r, 40));
+                await new Promise(r => setTimeout(r, 30));
                 const res = await getSymbolData(d.symbol);
-                if (res && res.isBull && res.totalScore > 35) results.push(res);
+                if (res && res.isBull && res.totalScore > 30) results.push(res);
             }
 
             results.sort((a, b) => (a.isFocus === b.isFocus) ? (b.totalScore - a.totalScore) : (a.isFocus ? -1 : 1));
@@ -150,7 +153,7 @@
                         <span class="tp-tag">🎯 TP: ${r.suggestedTP}%</span>
                     </td>
                     <td><span class="score-box ${r.totalScore >= 80 ? 'score-100' : ''}">${r.totalScore}</span></td>
-                    <td style="color:${r.isFocus ? '#00ffcc' : '#888'}; font-size:11px;">數據標記: ${r.funding.toFixed(4)}%</td>
+                    <td style="color:${r.isFocus ? '#00ffcc' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
                     <td style="color:#aaa;">波:${r.vRatio.toFixed(1)}x | 距高:${r.distToH.toFixed(1)}%</td>
                     <td style="color:#00ffcc">${r.change}%</td>
                     <td><button class="btn-del" onclick="deleteSymbol('${r.s.replace('USDT','')}')">❌</button></td>
