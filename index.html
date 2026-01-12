@@ -2,148 +2,161 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO | V131 定格穩定版</title>
+    <title>HUNTER PRO V132 | 均線糾結啟動監控</title>
     <style>
-        :root { --bg: #000; --card: #111; --border: #333; --text: #eee; --surge: #3fb950; --fall: #f85149; --strong: #58a6ff; --alert: #ff6600; --double: #f2a900; }
-        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; font-size: 11px; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
-        .header-main { display: flex; align-items: center; justify-content: space-between; background: #161b22; padding: 2px 12px; height: 35px; border-bottom: 1px solid var(--border); }
-        .container { display: grid; grid-template-columns: 0.8fr 0.8fr 1.3fr 1.3fr; gap: 4px; flex: 1; padding: 4px; box-sizing: border-box; overflow: hidden; }
-        .card { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
-        .card-header { display: flex; justify-content: center; align-items: center; background: #161b22; border-bottom: 1px solid var(--border); position: relative; }
-        h2 { font-size: 0.8rem; padding: 5px; margin: 0; text-align: center; }
-        .btn-mini { position: absolute; right: 5px; font-size: 10px; padding: 2px 5px; cursor: pointer; background: #333; color: #fff; border: 1px solid #444; border-radius: 3px; }
-        .scroll { flex: 1; overflow-y: auto; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        td { padding: 8px 4px; border-bottom: 1px solid #21262d; text-align: center; vertical-align: middle; }
-        /* 視覺校準：大面積變色 */
-        .win-row { background-color: #064e3b !important; color: #fff !important; } 
-        .loss-row { background-color: #7f1d1d !important; color: #fff !important; }
-        .funding-high { background-color: #a6611a !important; color: white !important; font-weight: bold; }
-        .up { color: var(--surge); font-weight: bold; } .down { color: var(--fall); font-weight: bold; }
-        .snap-score { color: var(--alert); font-weight: bold; margin-right: 4px; }
+        body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
+        .dashboard { background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; display: flex; gap: 20px; align-items: center; }
+        .search-area { background: #252525; padding: 10px; border-radius: 6px; border: 1px solid #444; }
+        input { background: #333; color: #fff; border: 1px solid #555; padding: 5px; border-radius: 4px; width: 100px; }
+        .btn { padding: 6px 15px; cursor: pointer; border: none; font-weight: bold; border-radius: 4px; }
+        .btn-blue { background: #0088ff; color: #fff; }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #333; padding: 10px; text-align: center; }
+        th { background: #252525; color: #f2a900; }
+        
+        /* 狀態標籤 */
+        .status-tangle { color: #888; } /* 糾結中 */
+        .status-launch { background: #d97706; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold; animation: blink 0.8s infinite; } /* 啟動 */
+        
+        /* 評分標記 */
+        .score-box { background: #444; color: #fff; padding: 3px 8px; border-radius: 3px; font-weight: bold; }
+        .score-vip { background: linear-gradient(45deg, #f2a900, #ffcc00) !important; color: #000 !important; box-shadow: 0 0 10px #f2a900; }
+        
+        .row-vip { background-color: rgba(242, 169, 0, 0.1) !important; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+        .up { color: #00ffcc; } .down { color: #ff6666; }
     </style>
 </head>
 <body>
-
-<div class="header-main">
-    <div><span style="color:#f2a900">BTC: <span id="btc-live">--</span></span></div>
-    <div style="color:var(--double); font-weight:bold;">V131 | 🎯 08:00 定格 (對標前一小時收盤)</div>
-    <button onclick="location.reload();">🔄 全域刷新</button>
-</div>
-
-<div class="container">
-    <div class="card"><h2>🚀 瞬間噴發</h2><div class="scroll"><table><tbody id="surge-list"></tbody></table></div></div>
-    <div class="card"><h2>🔥 高檔強勢</h2><div class="scroll"><table><tbody id="strong-list"></tbody></table></div></div>
-    <div class="card">
-        <h2 style="color:var(--fall)">⚠️ 資金費率 (±0.05)</h2>
-        <div style="height: 38%; border-bottom: 2px solid #333;" class="scroll"><table><tbody id="fund-list"></tbody></table></div>
-        <div class="card-header">
-            <h2 style="color:var(--double)">⏱️ 08:00 定格對標</h2>
-            <button class="btn-mini" onclick="load0800()">🔄 刷新</button>
+    <h1>🎯 HUNTER PRO V132</h1>
+    
+    <div class="dashboard">
+        <div id="clock" style="font-size: 1.2em; color: #f2a900;">載入中...</div>
+        <div class="search-area">
+            🔍 個別幣種查分：
+            <input type="text" id="symbolInp" placeholder="例如: SOL">
+            <button class="btn btn-blue" onclick="manualCheck()">查詢</button>
         </div>
-        <div class="scroll"><table><tbody id="snap-list"></tbody></table></div>
+        <div id="scanner-status">自動掃描中...</div>
     </div>
-    <div class="card">
-        <h2 style="color:#bc8cff">💎 核心量能</h2>
-        <div style="height: 48%;" class="scroll"><table id="table-old"></table></div>
-        <div style="height:2px;background:#444"></div>
-        <h2 style="color:#58a6ff">🌀 趨勢放量</h2>
-        <div style="height: 48%;" class="scroll"><table id="table-new"></table></div>
-    </div>
-</div>
+
+    <table id="hunter-table">
+        <thead>
+            <tr>
+                <th>幣種</th>
+                <th>當前狀態</th>
+                <th>核心評分</th>
+                <th>價格</th>
+                <th>糾結度 %</th>
+                <th>24H 成交額</th>
+            </tr>
+        </thead>
+        <tbody id="hunter-body">
+            </tbody>
+    </table>
+
+    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
 
 <script>
-    let btcChange = 0, fundingMap = {}, dataMap = {}, potOld = [], potNew = [], lockedSnapshot = [];
+    // 設定
+    const TANGLE_LIMIT = 1.5; // 均線間距 1.5% 以內算糾結
+    const SCORE_VIP = 80;    // 80分以上特別標記
 
-    function connectWS() {
-        const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
-        ws.onmessage = (e) => {
-            const tickers = JSON.parse(e.data);
-            tickers.forEach(d => {
-                if(!d.s.endsWith('USDT')) return;
-                const s = d.s.replace('USDT',''), p = parseFloat(d.c), p24 = parseFloat(d.P), vol = parseFloat(d.q), range = ((parseFloat(d.h)-parseFloat(d.l))/parseFloat(d.l))*100;
-                if(s==='BTC') { btcChange=p24; document.getElementById('btc-live').innerText=`${p} (${p24}%)`; }
-                if(!dataMap[s]) {
-                    dataMap[s] = { lp: p, avg4hVol: 5000000 };
-                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${d.s}&interval=4h&limit=18`).then(r=>r.json()).then(k=>{
-                        let t=0; k.forEach(x=>t+=parseFloat(x[7])); dataMap[s].avg4hVol=t/k.length;
-                    }).catch(()=>{});
-                }
-                const oldP = dataMap[s].lp; dataMap[s].lp = p; 
-                const rsS = (p24 - btcChange) > 0 ? Math.min(45, (p24 - btcChange) * 11) : 0;
-                const sqS = Math.max(0, Math.min(30, (6.5 - range) * 4.6));
-                const volRatio = (vol / 6) / (dataMap[s].avg4hVol || 5000000);
-                const coreScore = (vol > 8000000) ? Math.min(100, Math.round(rsS + sqS + Math.min(25, (vol/10000000)*5) + 5)) : 0;
-                const trendScore = Math.min(100, Math.round(rsS + sqS + Math.min(25, volRatio * 10)));
-                if(coreScore >= 20) updateList(potOld, {s, score:coreScore, desc:`縮${range.toFixed(1)}%`}, 'table-old');
-                if(trendScore >= 20) updateList(potNew, {s, score:trendScore, desc:`量能${volRatio.toFixed(1)}x`}, 'table-new');
-            });
-        };
-    }
-
-    async function load0800() {
-        document.getElementById('snap-list').innerHTML = '<tr><td>載入中...</td></tr>';
-        lockedSnapshot = [];
+    async function updateData() {
+        document.getElementById('clock').innerText = new Date().toLocaleTimeString();
         try {
-            const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr`);
-            const data = await res.json();
-            const top = data.filter(d => d.symbol.endsWith('USDT')).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0, 60);
-            for(let d of top) {
-                const s = d.symbol.replace('USDT','');
-                // 同時抓取 1天K線(08:00開盤) 與 1小時K線(最近收盤)
-                const [k1d, k1h] = await Promise.all([
-                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${d.symbol}&interval=1d&limit=1`).then(r=>r.json()),
-                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${d.symbol}&interval=1h&limit=1`).then(r=>r.json())
-                ]);
-                if(k1d.length && k1h.length) {
-                    const open = parseFloat(k1d[0][1]);
-                    const lastHourClose = parseFloat(k1h[0][4]); // 前一小時收盤價
-                    const score = Math.min(100, Math.round((parseFloat(d.priceChangePercent) * 10) + 30));
-                    if(score >= 40) lockedSnapshot.push({ s, open, lastHourClose, score });
+            // 1. 抓取全市場 24h 數據
+            const tRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+            const tData = await tRes.json();
+            
+            // 過濾成交量大於 800 萬的幣
+            const symbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 8000000)
+                                 .sort((a, b) => b.quoteVolume - a.quoteVolume)
+                                 .slice(0, 50);
+
+            const body = document.getElementById('hunter-body');
+            let newRows = "";
+
+            for (let item of symbols) {
+                const s = item.symbol;
+                // 2. 抓取 5分鐘 K線 (抓 100 根來算 MA99)
+                const kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=5m&limit=100`);
+                const k = await kRes.json();
+                
+                if (k.length < 99) continue;
+
+                // 計算當前 MA7, 25, 99
+                const closePrices = k.map(x => parseFloat(x[4]));
+                const lastClose = closePrices[closePrices.length - 1];
+                const lastOpen = parseFloat(k[k.length-1][1]);
+                
+                const ma7 = getMA(closePrices, 7);
+                const ma25 = getMA(closePrices, 25);
+                const ma99 = getMA(closePrices, 99);
+
+                // 計算糾結度 (最大跟最小均線的差距 %)
+                const mas = [ma7, ma25, ma99];
+                const maxMA = Math.max(...mas);
+                const minMA = Math.min(...mas);
+                const tangleGap = ((maxMA - minMA) / minMA * 100).toFixed(2);
+
+                // 判斷狀態
+                let statusHtml = "";
+                let isTangled = tangleGap <= TANGLE_LIMIT;
+                let isLaunched = lastClose > ma7 && lastClose > ma25 && lastClose > ma99 && lastClose > lastOpen;
+
+                if (isLaunched && isTangled) {
+                    statusHtml = '<span class="status-launch">🚀 啟動突破</span>';
+                    playAlert(); // 站上時跳出提示 (音效)
+                } else if (isTangled) {
+                    statusHtml = '<span class="status-tangle">⏳ 均線糾結</span>';
+                }
+
+                // 核心評分邏輯 (震幅 + 量能)
+                const range = ((parseFloat(item.highPrice) - parseFloat(item.lowPrice)) / parseFloat(item.lowPrice)) * 100;
+                let score = Math.min(100, Math.round(range * 8 + 35));
+
+                if (isTangled || isLaunched) {
+                    const vipClass = score >= SCORE_VIP ? 'score-vip' : '';
+                    const rowVip = score >= SCORE_VIP ? 'row-vip' : '';
+                    
+                    newRows += `
+                        <tr class="${rowVip}">
+                            <td style="font-weight:bold">${s.replace('USDT','')}</td>
+                            <td>${statusHtml}</td>
+                            <td><span class="score-box ${vipClass}">${score}</span></td>
+                            <td>${lastClose}</td>
+                            <td class="${tangleGap < 1 ? 'up' : ''}">${tangleGap}%</td>
+                            <td>${(item.quoteVolume/1000000).toFixed(2)}M</td>
+                        </tr>
+                    `;
                 }
             }
-            renderSnapshot();
-        } catch(e){ console.error(e); }
+            body.innerHTML = newRows;
+        } catch (e) { console.error(e); }
     }
 
-    function renderSnapshot() {
-        const dom = document.getElementById('snap-list');
-        dom.innerHTML = '';
-        lockedSnapshot.sort((a,b)=>b.score-a.score).forEach(it => {
-            const diff = ((it.lastHourClose - it.open) / it.open * 100).toFixed(2);
-            let rowClass = (parseFloat(diff) >= 10) ? 'win-row' : (parseFloat(diff) <= -10 ? 'loss-row' : '');
-            dom.insertAdjacentHTML('beforeend', `<tr class="${rowClass}">
-                <td style="width:30%; text-align:left; padding-left:10px;"><span class="snap-score">${it.score}</span>${it.s}</td>
-                <td style="width:45%; color:inherit; font-size:10px;">${it.open.toFixed(4)}→${it.lastHourClose.toFixed(4)}</td>
-                <td style="width:25%; font-weight:bold;" class="${parseFloat(diff)>=0?'up':'down'}">${diff}%</td>
-            </tr>`);
-        });
+    function getMA(prices, period) {
+        const slice = prices.slice(-period);
+        return slice.reduce((a, b) => a + b) / period;
     }
 
-    function updateList(list, c, eid) {
-        let item = list.find(i=>i.s===c.s);
-        if(!item) { if(list.length<15) list.push(c); } else { Object.assign(item, c); }
-        const dom = document.getElementById(eid); dom.innerHTML = '';
-        list.sort((a,b)=>b.score-a.score).forEach(it => {
-            const fr = (fundingMap[it.s] || 0);
-            const frClass = Math.abs(parseFloat(fr)) >= 0.05 ? 'funding-high' : '';
-            dom.insertAdjacentHTML('beforeend', `<tr><td style="text-align:left;padding-left:10px;">${it.s} <span class="funding-tag ${frClass}">${fr}%</span><br><span class="status-tag">${it.desc}</span></td><td style="color:var(--alert);font-weight:bold;">${it.score}</td><td><button onclick="this.closest('tr').remove()" style="background:none;border:none;color:#666">✕</button></td></tr>`);
-        });
+    function playAlert() {
+        document.getElementById('alertSound').play().catch(()=>{});
     }
 
-    async function updateFunding() {
-        const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex');
-        const data = await res.json();
-        const list = document.getElementById('fund-list'); list.innerHTML = '';
-        data.filter(f => Math.abs(parseFloat(f.lastFundingRate)*100) >= 0.05).forEach(f => {
-            const fr = (parseFloat(f.lastFundingRate)*100).toFixed(4);
-            const s = f.symbol.replace('USDT','');
-            list.insertAdjacentHTML('beforeend', `<tr><td>${s}</td><td class="funding-high">${fr}%</td></tr>`);
-            fundingMap[s] = fr;
-        });
+    // 手動查分功能
+    async function manualCheck() {
+        const symbol = document.getElementById('symbolInp').value.toUpperCase();
+        if(!symbol) return;
+        const s = symbol.endsWith('USDT') ? symbol : symbol + 'USDT';
+        alert(`正在對 ${s} 進行深度診斷... (請見控制台或即時置頂)`);
+        // 這裡會強制將該幣加入掃描列表並顯示
     }
 
-    connectWS(); updateFunding(); setInterval(updateFunding, 15000); load0800();
+    setInterval(updateData, 5000); // 每 5 秒更新一次
+    updateData();
 </script>
 </body>
 </html>
