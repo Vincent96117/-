@@ -2,43 +2,40 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER PRO V132 | 均線糾結啟動監控</title>
+    <title>HUNTER PRO V132 | 強勢監控版</title>
     <style>
         body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; }
-        .dashboard { background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; display: flex; gap: 20px; align-items: center; }
+        .dashboard { background: #1c1c1c; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; display: flex; gap: 20px; align-items: center; justify-content: space-between; }
         .search-area { background: #252525; padding: 10px; border-radius: 6px; border: 1px solid #444; }
         input { background: #333; color: #fff; border: 1px solid #555; padding: 5px; border-radius: 4px; width: 100px; }
-        .btn { padding: 6px 15px; cursor: pointer; border: none; font-weight: bold; border-radius: 4px; }
-        .btn-blue { background: #0088ff; color: #fff; }
-        
         table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #333; padding: 10px; text-align: center; }
-        th { background: #252525; color: #f2a900; }
+        th, td { border: 1px solid #333; padding: 8px; text-align: center; }
+        th { background: #252525; color: #f2a900; position: sticky; top: 0; }
         
-        /* 狀態標籤 */
-        .status-tangle { color: #888; } /* 糾結中 */
-        .status-launch { background: #d97706; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold; animation: blink 0.8s infinite; } /* 啟動 */
+        /* 狀態顏色 */
+        .status-launch { background: #d97706; color: #fff; padding: 2px 5px; border-radius: 3px; font-weight: bold; animation: blink 0.8s infinite; }
+        .status-tangle { color: #888; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; }
+        .funding-alert { background: #ff0000; color: #fff; font-weight: bold; padding: 2px 5px; border-radius: 3px; }
         
-        /* 評分標記 */
         .score-box { background: #444; color: #fff; padding: 3px 8px; border-radius: 3px; font-weight: bold; }
         .score-vip { background: linear-gradient(45deg, #f2a900, #ffcc00) !important; color: #000 !important; box-shadow: 0 0 10px #f2a900; }
         
+        .up { color: #00ffcc; } .down { color: #ff6666; }
         .row-vip { background-color: rgba(242, 169, 0, 0.1) !important; }
         @keyframes blink { 50% { opacity: 0.3; } }
-        .up { color: #00ffcc; } .down { color: #ff6666; }
     </style>
 </head>
 <body>
-    <h1>🎯 HUNTER PRO V132</h1>
+    <h1>🎯 HUNTER PRO V132 (評分 70+ 強勢監控)</h1>
     
     <div class="dashboard">
         <div id="clock" style="font-size: 1.2em; color: #f2a900;">載入中...</div>
         <div class="search-area">
-            🔍 個別幣種查分：
+            🔍 個別幣種查詢：
             <input type="text" id="symbolInp" placeholder="例如: SOL">
-            <button class="btn btn-blue" onclick="manualCheck()">查詢</button>
+            <button onclick="manualCheck()" style="cursor:pointer">查詢</button>
         </div>
-        <div id="scanner-status">自動掃描中...</div>
+        <div id="scanner-status">正在過濾 70 分以上強勢幣...</div>
     </div>
 
     <table id="hunter-table">
@@ -46,116 +43,100 @@
             <tr>
                 <th>幣種</th>
                 <th>當前狀態</th>
-                <th>核心評分</th>
+                <th>評分</th>
                 <th>價格</th>
+                <th>24H 漲跌</th>
+                <th>最高/最低</th>
+                <th>資費 (Funding)</th>
                 <th>糾結度 %</th>
-                <th>24H 成交額</th>
+                <th>成交額</th>
             </tr>
         </thead>
-        <tbody id="hunter-body">
-            </tbody>
+        <tbody id="hunter-body"></tbody>
     </table>
 
-    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
-
 <script>
-    // 設定
-    const TANGLE_LIMIT = 1.5; // 均線間距 1.5% 以內算糾結
-    const SCORE_VIP = 80;    // 80分以上特別標記
+    const TANGLE_LIMIT = 1.5; 
+    const MIN_SCORE = 70; // 修改：只顯示 70 分以上的幣
 
     async function updateData() {
         document.getElementById('clock').innerText = new Date().toLocaleTimeString();
         try {
-            // 1. 抓取全市場 24h 數據
-            const tRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+            const [tRes, fRes] = await Promise.all([
+                fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
+                fetch('https://fapi.binance.com/fapi/v1/premiumIndex')
+            ]);
             const tData = await tRes.json();
+            const fData = await fRes.json();
             
-            // 過濾成交量大於 800 萬的幣
-            const symbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 8000000)
-                                 .sort((a, b) => b.quoteVolume - a.quoteVolume)
-                                 .slice(0, 50);
+            // 初步過濾成交量
+            const potentialSymbols = tData.filter(d => d.symbol.endsWith('USDT') && parseFloat(d.quoteVolume) > 8000000);
 
             const body = document.getElementById('hunter-body');
             let newRows = "";
 
-            for (let item of symbols) {
+            for (let item of potentialSymbols) {
                 const s = item.symbol;
-                // 2. 抓取 5分鐘 K線 (抓 100 根來算 MA99)
+                
+                // 1. 先算分，沒過 70 分的直接跳過，不跑均線運算以節省資源
+                const range = ((parseFloat(item.highPrice) - parseFloat(item.lowPrice)) / parseFloat(item.lowPrice)) * 100;
+                let score = Math.min(100, Math.round(range * 8 + 35));
+                
+                if (score < MIN_SCORE) continue; 
+
+                // 2. 分數夠了，才抓 K 線算均線
                 const kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=5m&limit=100`);
                 const k = await kRes.json();
-                
                 if (k.length < 99) continue;
 
-                // 計算當前 MA7, 25, 99
                 const closePrices = k.map(x => parseFloat(x[4]));
                 const lastClose = closePrices[closePrices.length - 1];
                 const lastOpen = parseFloat(k[k.length-1][1]);
-                
                 const ma7 = getMA(closePrices, 7);
                 const ma25 = getMA(closePrices, 25);
                 const ma99 = getMA(closePrices, 99);
+                const tangleGap = ((Math.max(ma7,ma25,ma99) - Math.min(ma7,ma25,ma99)) / Math.min(ma7,ma25,ma99) * 100).toFixed(2);
 
-                // 計算糾結度 (最大跟最小均線的差距 %)
-                const mas = [ma7, ma25, ma99];
-                const maxMA = Math.max(...mas);
-                const minMA = Math.min(...mas);
-                const tangleGap = ((maxMA - minMA) / minMA * 100).toFixed(2);
-
-                // 判斷狀態
-                let statusHtml = "";
-                let isTangled = tangleGap <= TANGLE_LIMIT;
-                let isLaunched = lastClose > ma7 && lastClose > ma25 && lastClose > ma99 && lastClose > lastOpen;
-
-                if (isLaunched && isTangled) {
+                let statusHtml = "-";
+                if (lastClose > ma7 && lastClose > ma25 && lastClose > ma99 && lastClose > lastOpen && tangleGap <= TANGLE_LIMIT) {
                     statusHtml = '<span class="status-launch">🚀 啟動突破</span>';
-                    playAlert(); // 站上時跳出提示 (音效)
-                } else if (isTangled) {
+                } else if (tangleGap <= TANGLE_LIMIT) {
                     statusHtml = '<span class="status-tangle">⏳ 均線糾結</span>';
                 }
 
-                // 核心評分邏輯 (震幅 + 量能)
-                const range = ((parseFloat(item.highPrice) - parseFloat(item.lowPrice)) / parseFloat(item.lowPrice)) * 100;
-                let score = Math.min(100, Math.round(range * 8 + 35));
+                const fund = fData.find(f => f.symbol === s);
+                const fundRate = fund ? (parseFloat(fund.lastFundingRate) * 100).toFixed(4) : "0.0000";
+                const fundClass = Math.abs(parseFloat(fundRate)) >= 0.05 ? 'funding-alert' : '';
+                const change = parseFloat(item.priceChangePercent);
 
-                if (isTangled || isLaunched) {
-                    const vipClass = score >= SCORE_VIP ? 'score-vip' : '';
-                    const rowVip = score >= SCORE_VIP ? 'row-vip' : '';
-                    
-                    newRows += `
-                        <tr class="${rowVip}">
-                            <td style="font-weight:bold">${s.replace('USDT','')}</td>
-                            <td>${statusHtml}</td>
-                            <td><span class="score-box ${vipClass}">${score}</span></td>
-                            <td>${lastClose}</td>
-                            <td class="${tangleGap < 1 ? 'up' : ''}">${tangleGap}%</td>
-                            <td>${(item.quoteVolume/1000000).toFixed(2)}M</td>
-                        </tr>
-                    `;
-                }
+                newRows += `
+                    <tr class="${score >= 80 ? 'row-vip' : ''}">
+                        <td style="font-weight:bold">${s.replace('USDT','')}</td>
+                        <td>${statusHtml}</td>
+                        <td><span class="score-box ${score >= 80 ? 'score-vip' : ''}">${score}</span></td>
+                        <td style="font-weight:bold">${lastClose}</td>
+                        <td class="${change >= 0 ? 'up' : 'down'}">${change}%</td>
+                        <td style="font-size:11px">${item.highPrice} / ${item.lowPrice}</td>
+                        <td><span class="${fundClass}">${fundRate}%</span></td>
+                        <td class="${tangleGap <= 1 ? 'up' : ''}">${tangleGap}%</td>
+                        <td>${(item.quoteVolume/1000000).toFixed(2)}M</td>
+                    </tr>
+                `;
             }
             body.innerHTML = newRows;
         } catch (e) { console.error(e); }
     }
 
     function getMA(prices, period) {
-        const slice = prices.slice(-period);
-        return slice.reduce((a, b) => a + b) / period;
+        return prices.slice(-period).reduce((a, b) => a + b) / period;
     }
 
-    function playAlert() {
-        document.getElementById('alertSound').play().catch(()=>{});
+    function manualCheck() {
+        const s = document.getElementById('symbolInp').value.toUpperCase();
+        if(s) window.open(`https://www.binance.com/zh-TC/futures/${s.includes('USDT')?s:s+'USDT'}`);
     }
 
-    // 手動查分功能
-    async function manualCheck() {
-        const symbol = document.getElementById('symbolInp').value.toUpperCase();
-        if(!symbol) return;
-        const s = symbol.endsWith('USDT') ? symbol : symbol + 'USDT';
-        alert(`正在對 ${s} 進行深度診斷... (請見控制台或即時置頂)`);
-        // 這裡會強制將該幣加入掃描列表並顯示
-    }
-
-    setInterval(updateData, 5000); // 每 5 秒更新一次
+    setInterval(updateData, 5000);
     updateData();
 </script>
 </body>
