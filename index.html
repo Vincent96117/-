@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V174 | 靜音優化版</title>
+    <title>HUNTER V175 | 真實動能修正版</title>
     <style>
         body { background: radial-gradient(circle at top, #1a1c2c, #0d0e15); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; min-height: 100vh; margin: 0; }
         .header { background: rgba(30, 34, 54, 0.9); padding: 18px; border-radius: 12px; border: 1px solid #3d4465; margin: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
@@ -49,7 +49,7 @@
 
     <table>
         <thead>
-            <tr><th width="50">✕</th><th width="100">狀態</th><th>幣種 / ATR區間</th><th>🚀 衝刺等級 (緩降)</th><th>技術總分</th><th>資費 (±0.05)</th><th>行情性質 (去連動)</th></tr>
+            <tr><th width="50">✕</th><th width="100">狀態</th><th>幣種 / ATR區間</th><th>🚀 衝刺等級 (真實動能)</th><th>技術總分</th><th>資費 (±0.05)</th><th>行情性質 (獨立加分)</th></tr>
         </thead>
         <tbody id="list-body"></tbody>
     </table>
@@ -57,7 +57,7 @@
 <script>
     let isMonitoring = false, isSoundOn = true, timer = null, rawResults = [], blackList = new Set();
     let lvMemory = {}, btcPrevPrice = 0, btcDirection = 0; 
-    let alertHistory = {}; // 記錄警報次數與冷卻時間
+    let alertHistory = {}; 
     const hideList = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "BNXUSDT"];
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -67,18 +67,13 @@
         if (!isSoundOn) return;
         const now = Date.now();
         if (!alertHistory[symbol]) alertHistory[symbol] = { count: 0, lastTime: 0 };
-        
-        // 如果距離上次叫超過 3 分鐘，重置次數
         if (now - alertHistory[symbol].lastTime > 180000) alertHistory[symbol].count = 0;
-
-        // 如果叫不到三次，就叫
         if (alertHistory[symbol].count < 3) {
             const o = audioCtx.createOscillator(), g = audioCtx.createGain();
             o.frequency.setValueAtTime(1000, audioCtx.currentTime);
             g.gain.setValueAtTime(0.05, audioCtx.currentTime);
             o.connect(g); g.connect(audioCtx.destination);
             o.start(); o.stop(audioCtx.currentTime + 0.1);
-            
             alertHistory[symbol].count++;
             alertHistory[symbol].lastTime = now;
         }
@@ -118,39 +113,45 @@
                 fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json()),
                 fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${s}`).then(r=>r.json()),
                 fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json()),
-                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=2`).then(r=>r.json())
+                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=30`).then(r=>r.json())
             ]);
             const now = parseFloat(hK[24][4]), hCloses = hK.map(k=>parseFloat(k[4]));
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7, ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
             const min4h = Math.min(...hK.slice(20, 24).map(k => parseFloat(k[3])));
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3])), avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
             
+            // 技術評分
             const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
             const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
             const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/15000000)*12.5);
             const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
             
             let totalScore = Math.round(s1 + s2 + s3 + s4);
-            const coinDirection = now > parseFloat(mK[0][4]) ? 1 : -1;
+            const coinDirection = now > parseFloat(mK[mK.length-1][4]) ? 1 : -1;
             let decoupleStatus = "跟隨";
-            
             if (btcDirection <= 0 && coinDirection === 1) { totalScore += 20; decoupleStatus = "⚡ 獨立"; }
-            
             totalScore = Math.min(100, totalScore);
             if (now < min4h) totalScore = 0; 
 
+            // [核心修正] LV 回歸量比計算，不隨總分起舞
+            const vol1m = parseFloat(mK[mK.length-1][5]);
+            const avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0)/mK.length;
+            const vRatio = vol1m / avgVol1m;
+            let curThrust = 1;
+            if (vRatio > 5) curThrust = 10;
+            else if (vRatio > 3) curThrust = 8;
+            else if (vRatio > 2) curThrust = 6;
+            else if (vRatio > 1.2) curThrust = 3;
+
             if (!lvMemory[s]) lvMemory[s] = 1;
-            let curThrust = (totalScore >= 90) ? 10 : (totalScore > 60 ? Math.floor(totalScore/10) : 1);
-            if (curThrust > lvMemory[s]) lvMemory[s] = curThrust; else if (lvMemory[s] > 1) lvMemory[s] -= 1;
-            let thrustLv = lvMemory[s];
+            if (curThrust > lvMemory[s]) lvMemory[s] = curThrust; else if (lvMemory[s] > 1) lvMemory[s] -= 0.5; // 緩降減慢至 0.5 增加平滑感
+            let thrustLv = Math.floor(lvMemory[s]);
 
             const funding = parseFloat(fRes.lastFundingRate * 100);
             const isTangling = (funding >= -0.05 && funding <= 0.05);
-            
-            // 90分才叫，且具備冷卻機制
             if (isMonitoring && totalScore >= 90 && isTangling) playSmartBeep(s);
             
-            return { s, totalScore, thrustLv, tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1), funding, change: tData.priceChangePercent, decoupleStatus, isTangling };
+            return { s, totalScore, thrustLv, tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1), funding, change: tData.priceChangePercent, decoupleStatus, isTangling, vRatio: vRatio.toFixed(1) };
         } catch(e) { return null; }
     }
 
@@ -182,7 +183,7 @@
                 <td><span class="del-btn" onclick="removeSymbol('${r.s}')">✕</span></td>
                 <td>${r.isTangling ? '💎 潛伏' : '📊 趨勢'}</td>
                 <td style="font-weight:bold; color:#fff;">${r.s.replace('USDT','')}<span class="info-tag">🎯 ${r.tp}% / -${r.sl}%</span></td>
-                <td class="${r.thrustLv >= 9 ? 'lv-high' : ''}">LV ${r.thrustLv}</td>
+                <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}">LV ${r.thrustLv}<span class="info-tag">量比: ${r.vRatio}x</span></td>
                 <td><span class="score-box ${r.totalScore >= 90 ? 'score-alert' : 'score-normal'}">${r.totalScore}</span></td>
                 <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
                 <td><span class="decouple-tag ${r.decoupleStatus.includes('⚡') ? 'tag-independent' : 'tag-follow'}">${r.decoupleStatus}</span><span class="info-tag">${r.change}%</span></td>
