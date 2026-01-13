@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V176 | 數值完全修復版</title>
+    <title>HUNTER V177 | TP/SL 算法回歸版</title>
     <style>
         body { background: radial-gradient(circle at top, #1a1c2c, #0d0e15); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; min-height: 100vh; margin: 0; }
         .header { background: rgba(30, 34, 54, 0.9); padding: 18px; border-radius: 12px; border: 1px solid #3d4465; margin: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
@@ -35,25 +35,19 @@
         input { background: #2d3250; border: 1px solid #3d4465; color: #fff; padding: 10px 14px; border-radius: 8px; width: 220px; }
         .del-btn { color: #666; cursor: pointer; font-size: 20px; font-weight: bold; }
         .info-tag { font-size: 11px; color: #aaa; display: block; margin-top: 5px; }
+        .tp-text { color: #00ffcc; font-weight: bold; }
+        .sl-text { color: #ff5252; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="header">
         <div class="monitor-bar">
-            <div class="index-item">
-                <span class="index-name">BTC</span>
-                <span id="btc-price" class="index-price">--</span>
-                <span id="btc-chg" class="index-chg">--</span>
-            </div>
-            <div class="index-item">
-                <span class="index-name">ETH</span>
-                <span id="eth-price" class="index-price">--</span>
-                <span id="eth-chg" class="index-chg">--</span>
-            </div>
+            <div class="index-item"><span class="index-name">BTC</span><span id="btc-price" class="index-price">--</span><span id="btc-chg" class="index-chg">--</span></div>
+            <div class="index-item"><span class="index-name">ETH</span><span id="eth-price" class="index-price">--</span><span id="eth-chg" class="index-chg">--</span></div>
         </div>
         <div class="controls">
             <div class="search-group">
-                <input type="text" id="search-input" placeholder="🔍 搜尋黑馬(排除前25市值)..." onkeydown="if(event.key==='Enter') searchFromBinance()">
+                <input type="text" id="search-input" placeholder="🔍 搜尋黑馬(自動排除前25市值)..." onkeydown="if(event.key==='Enter') searchFromBinance()">
                 <button class="btn" onclick="searchFromBinance()" style="background:#3d4465; color:#fff;">搜尋幣安</button>
             </div>
             <button id="btn-toggle" class="btn" onclick="toggleMonitor()" style="background:#f2a900;color:#000;">啟動監控掃描</button>
@@ -62,7 +56,7 @@
 
     <table>
         <thead>
-            <tr><th width="50">✕</th><th width="100">類型</th><th>幣種 / ATR</th><th>🚀 衝刺等級 (回測)</th><th>技術總分 (脫鉤加權)</th><th>資費 (±0.05)</th><th>24H 漲跌</th></tr>
+            <tr><th width="50">✕</th><th width="100">類型</th><th>幣種 / ATR 建議</th><th>🚀 衝刺等級 (回測)</th><th>技術總分 (權重)</th><th>資費 (±0.05)</th><th>24H 漲跌</th></tr>
         </thead>
         <tbody id="list-body"></tbody>
     </table>
@@ -70,7 +64,7 @@
 <script>
     let isMonitoring = false, timer = null, rawResults = [], blackList = new Set();
     let lvMemory = {}, btcKlines = []; 
-    const top25Exclude = ["BTCUSDT", "ETHUSDT", "USDTUSDT", "BNBUSDT", "SOLUSDT", "USDCUSDT", "XRPUSDT", "ADAUSDT", "STETHUSDT", "DOGEUSDT", "AVAXUSDT", "TRXUSDT", "DOTUSDT", "LINKUSDT", "TONUSDT", "SHIBUSDT", "MATICUSDT", "POLUSDT", "WBTCUSDT", "DAIUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ICPUSDT", "BNXUSDT"];
+    const top25Exclude = ["BTCUSDT", "ETHUSDT", "USDTUSDT", "BNBUSDT", "SOLUSDT", "USDCUSDT", "XRPUSDT", "ADAUSDT", "STETHUSDT", "DOGEUSDT", "AVAXUSDT", "TRXUSDT", "DOTUSDT", "LINKUSDT", "TONUSDT", "SHIBUSDT", "MATICUSDT", "POLUSDT", "WBTCUSDT", "DAIUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ICPUSDT", "BNXUSDT", "BNXUSDT"];
 
     async function updateIndex() {
         try {
@@ -99,9 +93,14 @@
             const now = parseFloat(hK[24][4]), hCloses = hK.map(k=>parseFloat(k[4]));
             const min4h = Math.min(...hK.slice(20, 24).map(k => parseFloat(k[3])));
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7, ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
-            const avgR = (hK.map(k => parseFloat(k[2]) - parseFloat(k[3])).slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
+            
+            // --- V169 ATR 算法回歸 ---
+            const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
+            const avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
+            const v169_tp = ((avgR * 2.8) / now * 100).toFixed(1);
+            const v169_sl = ((avgR * 2.2) / now * 100).toFixed(1);
 
-            // --- 脫鉤加分邏輯 ---
+            // --- 脫鉤加分 ---
             let weight = 0, type = "📊 趨勢";
             if (btcKlines.length >= 2) {
                 const btcChg = (parseFloat(btcKlines[1][4]) - parseFloat(btcKlines[0][4])) / parseFloat(btcKlines[0][4]);
@@ -111,16 +110,14 @@
                 else if (altChg < -0.01 && btcChg >= 0) { weight = -20; type = "📉 弱勢"; }
             }
 
-            // --- 計分權重回歸 ---
-            const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25); // 波
-            const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0; // 糾
-            const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/30000000)*12.5); // 量
-            const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0; // 趨
+            const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
+            const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
+            const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/30000000)*12.5);
+            const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
             
             let totalScore = Math.round(s1 + s2 + s3 + s4) + weight;
-            if (now < min4h) totalScore = 0; // 4H保命符
+            if (now < min4h) totalScore = 0;
 
-            // --- LV 緩降機制 ---
             const vRatio = parseFloat(mK[59][5]) / (mK.reduce((a,b)=>a+parseFloat(b[5]),0) / 60);
             const buyRatio = (parseFloat(mK[59][9]) / parseFloat(mK[59][5])) * 100;
             let curThrust = (vRatio > 1.2 && now >= parseFloat(mK[58][4])) ? Math.max(2, Math.min(10, Math.round(vRatio * 1.8 + (buyRatio > 65 ? 3 : 0)))) : 1;
@@ -131,7 +128,7 @@
             const isTangling = (funding >= -0.05 && funding <= 0.05);
             if (isTangling && weight >= 0) type = "💎 潛伏";
 
-            return { s, totalScore, scores: [s1, s2, s3, s4], labels: ['波', '糾', '量', '趨'], thrustLv: lvMemory[s], vRatio: vRatio.toFixed(1), buyRatio: buyRatio.toFixed(0), tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1), funding, change: tData.priceChangePercent, isTangling, weight };
+            return { s, totalScore, scores:[s1,s2,s3,s4], labels:['波','糾','量','趨'], thrustLv:lvMemory[s], vRatio:vRatio.toFixed(1), buyRatio:buyRatio.toFixed(0), tp:v169_tp, sl:v169_sl, funding, change:tData.priceChangePercent, isTangling, weight };
         } catch(e) { return null; }
     }
 
@@ -162,7 +159,7 @@
             <tr class="${r.weight >= 20 ? 'row-strong' : (r.weight < 0 ? 'row-weak' : '')}">
                 <td><span class="del-btn" onclick="removeSymbol('${r.s}')">✕</span></td>
                 <td>${r.weight >= 20 ? '🚀 強力脫鉤' : (r.isTangling ? '💎 潛伏' : '📊 趨勢')}</td>
-                <td style="font-weight:bold; color:#fff;">${r.s.replace('USDT','')}<span class="info-tag">🎯 ${r.tp}% / -${r.sl}%</span></td>
+                <td style="font-weight:bold; color:#fff;">${r.s.replace('USDT','')}<br><span class="info-tag"><span class="tp-text">TP +${r.tp}%</span> / <span class="sl-text">SL -${r.sl}%</span></span></td>
                 <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}">LV ${r.thrustLv}<span class="info-tag">${r.vRatio}x / ${r.buyRatio}%</span></td>
                 <td><span class="score-box ${r.totalScore >= 80 ? 'score-alert' : 'score-normal'}">${r.totalScore}</span><div class="light-bar">${r.scores.map((s, i) => `<div class="light-unit"><span class="light-label">${r.labels[i]}</span><div class="light ${s >= 25 ? 'light-green' : (s >= 12.5 ? 'light-yellow' : 'light-red')}"></div></div>`).join('')}</div></td>
                 <td style="color:${Math.abs(r.funding) <= 0.05 ? '#00ffcc' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
