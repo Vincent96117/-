@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V176 | 技術分明細版</title>
+    <title>HUNTER V177 | 動態脫鉤精準版</title>
     <style>
         body { background: radial-gradient(circle at top, #1a1c2c, #0d0e15); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; min-height: 100vh; margin: 0; }
         .header { background: rgba(30, 34, 54, 0.9); padding: 18px; border-radius: 12px; border: 1px solid #3d4465; margin: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
@@ -49,14 +49,14 @@
 
     <table>
         <thead>
-            <tr><th width="50">✕</th><th width="100">狀態</th><th>幣種 / ATR區間</th><th>🚀 衝刺等級 (真實動能)</th><th>技術總分</th><th>資費 (±0.05)</th><th>行情性質 (獨立加分)</th></tr>
+            <tr><th width="50">✕</th><th width="100">狀態</th><th>幣種 / ATR區間</th><th>🚀 衝刺等級 (動能)</th><th>技術總分</th><th>資費 (±0.05)</th><th>行情性質 (動態加分)</th></tr>
         </thead>
         <tbody id="list-body"></tbody>
     </table>
 
 <script>
     let isMonitoring = false, isSoundOn = true, timer = null, rawResults = [], blackList = new Set();
-    let lvMemory = {}, btcPrevPrice = 0, btcDirection = 0; 
+    let lvMemory = {}, btcPrevPrice = 0, btcChg1m = 0; 
     let alertHistory = {}; 
     const hideList = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "BNXUSDT"];
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -81,20 +81,25 @@
 
     async function updateIndex() {
         try {
-            const symbols = ['BTCUSDT', 'ETHUSDT'];
-            for (const s of symbols) {
-                const r = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(res => res.json());
-                const id = s.replace('USDT','').toLowerCase();
-                const curPrice = parseFloat(r.lastPrice);
-                if (s === 'BTCUSDT') { btcDirection = curPrice > btcPrevPrice ? 1 : (curPrice < btcPrevPrice ? -1 : 0); btcPrevPrice = curPrice; }
-                const chg = parseFloat(r.priceChangePercent);
-                document.getElementById(`${id}-price`).innerText = curPrice.toLocaleString();
-                document.getElementById(`${id}-chg`).innerText = `${chg > 0 ? '+' : ''}${chg}%`;
-                document.getElementById(`${id}-chg`).style.color = chg >= 0 ? '#00ffcc' : '#ff5252';
+            const r = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT`).then(res => res.json());
+            const curPrice = parseFloat(r.lastPrice);
+            if (btcPrevPrice > 0) {
+                btcChg1m = (curPrice - btcPrevPrice) / btcPrevPrice * 100;
             }
+            btcPrevPrice = curPrice;
+            document.getElementById(`btc-price`).innerText = curPrice.toLocaleString();
+            const chg = parseFloat(r.priceChangePercent);
+            document.getElementById(`btc-chg`).innerText = `${chg > 0 ? '+' : ''}${chg}%`;
+            document.getElementById(`btc-chg`).style.color = chg >= 0 ? '#00ffcc' : '#ff5252';
+
+            const r2 = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=ETHUSDT`).then(res => res.json());
+            document.getElementById(`eth-price`).innerText = parseFloat(r2.lastPrice).toLocaleString();
+            const chg2 = parseFloat(r2.priceChangePercent);
+            document.getElementById(`eth-chg`).innerText = `${chg2 > 0 ? '+' : ''}${chg2}%`;
+            document.getElementById(`eth-chg`).style.color = chg2 >= 0 ? '#00ffcc' : '#ff5252';
         } catch(e) {}
     }
-    setInterval(updateIndex, 3000); updateIndex();
+    setInterval(updateIndex, 5000); updateIndex();
 
     function removeSymbol(s) { blackList.add(s); rawResults = rawResults.filter(r => r.s !== s); renderTable(); }
 
@@ -120,22 +125,29 @@
             const min4h = Math.min(...hK.slice(20, 24).map(k => parseFloat(k[3])));
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3])), avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
             
-            // 四項核心評分
             const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
             const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
             const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/15000000)*12.5);
             const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
             
             let totalScore = Math.round(s1 + s2 + s3 + s4);
-            const coinDirection = now > parseFloat(mK[mK.length-1][4]) ? 1 : -1;
-            let decoupleStatus = "跟隨";
+
+            // [核心修正] 等比例動態加分
+            const coinChg1m = (now - parseFloat(mK[mK.length-1][4])) / parseFloat(mK[mK.length-1][4]) * 100;
+            const alpha = coinChg1m - btcChg1m;
             let indyBonus = 0;
-            if (btcDirection <= 0 && coinDirection === 1) { indyBonus = 20; totalScore += 20; decoupleStatus = "⚡ 獨立"; }
-            
+            let decoupleStatus = "跟隨";
+
+            if (btcChg1m < 0.1) { // BTC 不是在暴漲時才計算脫鉤
+                if (alpha > 0.3) { indyBonus = 20; decoupleStatus = "🔥 極強獨立"; }
+                else if (alpha > 0.15) { indyBonus = 12; decoupleStatus = "⚡ 獨立"; }
+                else if (alpha > 0.05) { indyBonus = 5; decoupleStatus = "🌤️ 微脫鉤"; }
+            }
+            totalScore += indyBonus;
             totalScore = Math.min(100, totalScore);
             if (now < min4h) totalScore = 0; 
 
-            // LV 回歸真實量比 (1分鐘量 vs 30分鐘平均)
+            // LV 量比計算
             const vol1m = parseFloat(mK[mK.length-1][5]);
             const avgVol1m = mK.reduce((a,b)=>a+parseFloat(b[5]),0)/mK.length;
             const vRatio = vol1m / avgVol1m;
@@ -190,11 +202,11 @@
                 <td>
                     <span class="score-box ${r.totalScore >= 90 ? 'score-alert' : 'score-normal'}">${r.totalScore}</span>
                     <div style="font-size:10px; color:#888; margin-top:4px;">
-                        波:${r.det.s1} 糾:${r.det.s2} 量:${r.det.s3} 趨:${r.det.s4} ${r.det.indy > 0 ? '<span style="color:#00ffcc">⚡+20</span>' : ''}
+                        波:${r.det.s1} 糾:${r.det.s2} 量:${r.det.s3} 趨:${r.det.s4} ${r.det.indy > 0 ? '<span style="color:#00ffcc">⚡+'+r.det.indy+'</span>' : ''}
                     </div>
                 </td>
                 <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
-                <td><span class="decouple-tag ${r.decoupleStatus.includes('⚡') ? 'tag-independent' : 'tag-follow'}">${r.decoupleStatus}</span><span class="info-tag">${r.change}%</span></td>
+                <td><span class="decouple-tag ${r.decoupleStatus.includes('🔥') || r.decoupleStatus.includes('⚡') ? 'tag-independent' : 'tag-follow'}">${r.decoupleStatus}</span><span class="info-tag">${r.change}%</span></td>
             </tr>`).join('');
     }
 </script>
