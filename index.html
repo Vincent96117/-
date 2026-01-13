@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V172 | 脫鉤偵測完全體</title>
+    <title>HUNTER V174 | 靜音優化版</title>
     <style>
         body { background: radial-gradient(circle at top, #1a1c2c, #0d0e15); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; min-height: 100vh; margin: 0; }
         .header { background: rgba(30, 34, 54, 0.9); padding: 18px; border-radius: 12px; border: 1px solid #3d4465; margin: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
@@ -16,7 +16,8 @@
         td { background: #1e2236; padding: 14px; text-align: center; border-top: 1px solid #2d3250; border-bottom: 1px solid #2d3250; transition: 0.3s; }
         .row-tangling td { background: #1e2c36 !important; border-top-color: #00ffcc66; border-bottom-color: #00ffcc66; }
         .row-tangling td:first-child { border-left: 5px solid #00ffcc; border-radius: 4px 0 0 4px; }
-        .score-box { padding: 8px 16px; border-radius: 6px; font-weight: 900; font-size: 20px; border: 1px solid #444; display: inline-block; }
+        .score-box { padding: 8px 16px; border-radius: 6px; font-weight: 900; font-size: 20px; border: 1px solid #444; display: inline-block; min-width: 45px; }
+        .score-normal { color: #f2a900; background: #2a2a2a; border-color: #f2a900; }
         .score-alert { color: #ff3e3e; background: #3a1a1a; border-color: #ff3e3e; box-shadow: 0 0 15px #ff3e3e; animation: alert-blink 0.6s infinite; }
         .lv-high { color: #ff5252; font-weight: bold; text-shadow: 0 0 10px #ff5252; animation: blink 1s infinite; }
         @keyframes alert-blink { 50% { opacity: 0.6; transform: scale(1.05); } }
@@ -56,11 +57,32 @@
 <script>
     let isMonitoring = false, isSoundOn = true, timer = null, rawResults = [], blackList = new Set();
     let lvMemory = {}, btcPrevPrice = 0, btcDirection = 0; 
+    let alertHistory = {}; // 記錄警報次數與冷卻時間
     const hideList = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "BNXUSDT"];
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function toggleSound() { isSoundOn = !isSoundOn; document.getElementById('btn-sound').innerText = isSoundOn ? "🔊 聲音: 開" : "🔇 聲音: 關"; }
-    function playBeep() { if (!isSoundOn) return; const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.setValueAtTime(1000, audioCtx.currentTime); g.gain.setValueAtTime(0.05, audioCtx.currentTime); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.1); }
+    
+    function playSmartBeep(symbol) {
+        if (!isSoundOn) return;
+        const now = Date.now();
+        if (!alertHistory[symbol]) alertHistory[symbol] = { count: 0, lastTime: 0 };
+        
+        // 如果距離上次叫超過 3 分鐘，重置次數
+        if (now - alertHistory[symbol].lastTime > 180000) alertHistory[symbol].count = 0;
+
+        // 如果叫不到三次，就叫
+        if (alertHistory[symbol].count < 3) {
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            g.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + 0.1);
+            
+            alertHistory[symbol].count++;
+            alertHistory[symbol].lastTime = now;
+        }
+    }
 
     async function updateIndex() {
         try {
@@ -69,10 +91,7 @@
                 const r = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(res => res.json());
                 const id = s.replace('USDT','').toLowerCase();
                 const curPrice = parseFloat(r.lastPrice);
-                if (s === 'BTCUSDT') {
-                    btcDirection = curPrice > btcPrevPrice ? 1 : (curPrice < btcPrevPrice ? -1 : 0);
-                    btcPrevPrice = curPrice;
-                }
+                if (s === 'BTCUSDT') { btcDirection = curPrice > btcPrevPrice ? 1 : (curPrice < btcPrevPrice ? -1 : 0); btcPrevPrice = curPrice; }
                 const chg = parseFloat(r.priceChangePercent);
                 document.getElementById(`${id}-price`).innerText = curPrice.toLocaleString();
                 document.getElementById(`${id}-chg`).innerText = `${chg > 0 ? '+' : ''}${chg}%`;
@@ -106,38 +125,30 @@
             const min4h = Math.min(...hK.slice(20, 24).map(k => parseFloat(k[3])));
             const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3])), avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
             
-            // 基礎指標分
             const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
             const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
             const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/15000000)*12.5);
             const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
             
             let totalScore = Math.round(s1 + s2 + s3 + s4);
-
-            // 獨立性偵測 (核心邏輯修正)
             const coinDirection = now > parseFloat(mK[0][4]) ? 1 : -1;
-            let decoupleStatus = "聯動";
-            // 修正：當 BTC 下跌/盤整，小幣向上走，判定為獨立
-            if (btcDirection <= 0 && coinDirection === 1) {
-                totalScore += 20; 
-                decoupleStatus = "⚡ 獨立";
-            } else if (btcDirection === 1 && coinDirection === 1) {
-                decoupleStatus = "跟隨";
-            }
+            let decoupleStatus = "跟隨";
+            
+            if (btcDirection <= 0 && coinDirection === 1) { totalScore += 20; decoupleStatus = "⚡ 獨立"; }
+            
+            totalScore = Math.min(100, totalScore);
+            if (now < min4h) totalScore = 0; 
 
-            if (now < min4h) totalScore = 0; // 4H保險絲
-
-            // LV 緩降機制
-            const totalVol1m = parseFloat(tData.quoteVolume) / 1440; // 簡化估計
-            let curThrust = (totalScore > 60) ? Math.floor(totalScore/10) : 1;
             if (!lvMemory[s]) lvMemory[s] = 1;
-            if (curThrust > lvMemory[s]) lvMemory[s] = curThrust;
-            else if (lvMemory[s] > 1) lvMemory[s] -= 1;
+            let curThrust = (totalScore >= 90) ? 10 : (totalScore > 60 ? Math.floor(totalScore/10) : 1);
+            if (curThrust > lvMemory[s]) lvMemory[s] = curThrust; else if (lvMemory[s] > 1) lvMemory[s] -= 1;
             let thrustLv = lvMemory[s];
 
             const funding = parseFloat(fRes.lastFundingRate * 100);
             const isTangling = (funding >= -0.05 && funding <= 0.05);
-            if (isMonitoring && thrustLv >= 8 && isTangling) playBeep();
+            
+            // 90分才叫，且具備冷卻機制
+            if (isMonitoring && totalScore >= 90 && isTangling) playSmartBeep(s);
             
             return { s, totalScore, thrustLv, tp: ((avgR/now)*100*2.8).toFixed(1), sl: ((avgR/now)*100*2.2).toFixed(1), funding, change: tData.priceChangePercent, decoupleStatus, isTangling };
         } catch(e) { return null; }
@@ -171,8 +182,8 @@
                 <td><span class="del-btn" onclick="removeSymbol('${r.s}')">✕</span></td>
                 <td>${r.isTangling ? '💎 潛伏' : '📊 趨勢'}</td>
                 <td style="font-weight:bold; color:#fff;">${r.s.replace('USDT','')}<span class="info-tag">🎯 ${r.tp}% / -${r.sl}%</span></td>
-                <td class="${r.thrustLv >= 8 ? 'lv-high' : ''}">LV ${r.thrustLv}</td>
-                <td><span class="score-box ${r.totalScore >= 80 ? 'score-alert' : 'score-normal'}">${r.totalScore}</span></td>
+                <td class="${r.thrustLv >= 9 ? 'lv-high' : ''}">LV ${r.thrustLv}</td>
+                <td><span class="score-box ${r.totalScore >= 90 ? 'score-alert' : 'score-normal'}">${r.totalScore}</span></td>
                 <td style="color:${r.isTangling ? '#00ffcc' : '#eee'}; font-weight:bold;">${r.funding.toFixed(4)}%</td>
                 <td><span class="decouple-tag ${r.decoupleStatus.includes('⚡') ? 'tag-independent' : 'tag-follow'}">${r.decoupleStatus}</span><span class="info-tag">${r.change}%</span></td>
             </tr>`).join('');
