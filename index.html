@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>HUNTER V177 | TP/SL 算法回歸版</title>
+    <title>HUNTER V178 | 60日波動穩健版</title>
     <style>
         body { background: radial-gradient(circle at top, #1a1c2c, #0d0e15); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; font-size: 13px; min-height: 100vh; margin: 0; }
         .header { background: rgba(30, 34, 54, 0.9); padding: 18px; border-radius: 12px; border: 1px solid #3d4465; margin: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
@@ -47,7 +47,7 @@
         </div>
         <div class="controls">
             <div class="search-group">
-                <input type="text" id="search-input" placeholder="🔍 搜尋黑馬(自動排除前25市值)..." onkeydown="if(event.key==='Enter') searchFromBinance()">
+                <input type="text" id="search-input" placeholder="🔍 搜尋黑馬(排除前25市值)..." onkeydown="if(event.key==='Enter') searchFromBinance()">
                 <button class="btn" onclick="searchFromBinance()" style="background:#3d4465; color:#fff;">搜尋幣安</button>
             </div>
             <button id="btn-toggle" class="btn" onclick="toggleMonitor()" style="background:#f2a900;color:#000;">啟動監控掃描</button>
@@ -56,7 +56,7 @@
 
     <table>
         <thead>
-            <tr><th width="50">✕</th><th width="100">類型</th><th>幣種 / ATR 建議</th><th>🚀 衝刺等級 (回測)</th><th>技術總分 (權重)</th><th>資費 (±0.05)</th><th>24H 漲跌</th></tr>
+            <tr><th width="50">✕</th><th width="100">類型</th><th>幣種 / 60日ATR 建議</th><th>🚀 衝刺等級 (回測)</th><th>技術總分 (權重)</th><th>資費 (±0.05)</th><th>24H 漲跌</th></tr>
         </thead>
         <tbody id="list-body"></tbody>
     </table>
@@ -64,7 +64,7 @@
 <script>
     let isMonitoring = false, timer = null, rawResults = [], blackList = new Set();
     let lvMemory = {}, btcKlines = []; 
-    const top25Exclude = ["BTCUSDT", "ETHUSDT", "USDTUSDT", "BNBUSDT", "SOLUSDT", "USDCUSDT", "XRPUSDT", "ADAUSDT", "STETHUSDT", "DOGEUSDT", "AVAXUSDT", "TRXUSDT", "DOTUSDT", "LINKUSDT", "TONUSDT", "SHIBUSDT", "MATICUSDT", "POLUSDT", "WBTCUSDT", "DAIUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ICPUSDT", "BNXUSDT", "BNXUSDT"];
+    const top25Exclude = ["BTCUSDT", "ETHUSDT", "USDTUSDT", "BNBUSDT", "SOLUSDT", "USDCUSDT", "XRPUSDT", "ADAUSDT", "STETHUSDT", "DOGEUSDT", "AVAXUSDT", "TRXUSDT", "DOTUSDT", "LINKUSDT", "TONUSDT", "SHIBUSDT", "MATICUSDT", "POLUSDT", "WBTCUSDT", "DAIUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ICPUSDT", "BNXUSDT"];
 
     async function updateIndex() {
         try {
@@ -84,21 +84,26 @@
 
     async function getSymbolData(s) {
         try {
-            const [tData, fRes, hK, mK] = await Promise.all([
+            const [tData, fRes, hK, mK, dK] = await Promise.all([
                 fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`).then(r=>r.json()),
                 fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${s}`).then(r=>r.json()),
                 fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1h&limit=25`).then(r=>r.json()),
-                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=60`).then(r=>r.json())
+                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1m&limit=60`).then(r=>r.json()),
+                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=1d&limit=60`).then(r=>r.json())
             ]);
             const now = parseFloat(hK[24][4]), hCloses = hK.map(k=>parseFloat(k[4]));
             const min4h = Math.min(...hK.slice(20, 24).map(k => parseFloat(k[3])));
             const ma7 = hCloses.slice(-7).reduce((a,b)=>a+b,0)/7, ma25 = hCloses.slice(-25).reduce((a,b)=>a+b,0)/25;
             
-            // --- V169 ATR 算法回歸 ---
-            const ranges = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
-            const avgR = (ranges.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
-            const v169_tp = ((avgR * 2.8) / now * 100).toFixed(1);
-            const v169_sl = ((avgR * 2.2) / now * 100).toFixed(1);
+            // --- ATR 基礎計算 ---
+            const rangesH = hK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
+            const avgRH = (rangesH.slice(0, 24).reduce((a,b)=>a+b,0) / 24) || 0.001;
+
+            // --- 60日平均波動 TP/SL 回歸 ---
+            const rangesD = dK.map(k => parseFloat(k[2]) - parseFloat(k[3]));
+            const avgRD = (rangesD.reduce((a,b)=>a+b,0) / 60) || avgRH; // 如果日線不足則用小時補
+            const long_tp = ((avgRD * 2.8) / now * 100).toFixed(1);
+            const long_sl = ((avgRD * 2.2) / now * 100).toFixed(1);
 
             // --- 脫鉤加分 ---
             let weight = 0, type = "📊 趨勢";
@@ -110,7 +115,7 @@
                 else if (altChg < -0.01 && btcChg >= 0) { weight = -20; type = "📉 弱勢"; }
             }
 
-            const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgR/1.8)*25);
+            const s1 = Math.min(25, ((parseFloat(hK[24][2]) - parseFloat(hK[24][3]))/avgRH/1.8)*25);
             const s2 = (Math.abs(ma7-ma25)/ma25*100 < 3) ? 25 : 0;
             const s3 = Math.min(25, (parseFloat(tData.quoteVolume)/30000000)*12.5);
             const s4 = (now > ma7 && ma7 > ma25) ? 25 : 0;
@@ -128,7 +133,7 @@
             const isTangling = (funding >= -0.05 && funding <= 0.05);
             if (isTangling && weight >= 0) type = "💎 潛伏";
 
-            return { s, totalScore, scores:[s1,s2,s3,s4], labels:['波','糾','量','趨'], thrustLv:lvMemory[s], vRatio:vRatio.toFixed(1), buyRatio:buyRatio.toFixed(0), tp:v169_tp, sl:v169_sl, funding, change:tData.priceChangePercent, isTangling, weight };
+            return { s, totalScore, scores:[s1,s2,s3,s4], labels:['波','糾','量','趨'], thrustLv:lvMemory[s], vRatio:vRatio.toFixed(1), buyRatio:buyRatio.toFixed(0), tp:long_tp, sl:long_sl, funding, change:tData.priceChangePercent, isTangling, weight };
         } catch(e) { return null; }
     }
 
